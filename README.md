@@ -12,19 +12,21 @@ To learn more about GitHub Copilot, visit https://copilot.github.com.
 
 ## Getting started
 
-1.  Install [Node.js][] v12 or newer.
+1.  Make sure you have access to GitHub Copilot. You can sign up for an account at https://copilot.github.com. There is a waitlist as of Oct 2021. If you don't have an account, you can't use this plugin.
+  
+2.  Install [Node.js][] v12 or newer.
 
-2.  Install a [Neovim prerelease build][].  (Note: On macOS, [extra steps][]
+3.  Install a [Neovim prerelease build][].  (Note: On macOS, [extra steps][]
     are required to due to lack of notarization. Alternatively, Homebrew users
     can run `brew install neovim --HEAD`).
 
-3.  Install `github/copilot.vim` using vim-plug, packer.nvim, or any other
+4.  Install `github/copilot.vim` using vim-plug, packer.nvim, or any other
     plugin manager.  Or to install directly:
 
         git clone https://github.com/github/copilot.vim.git \
           ~/.config/nvim/pack/github/start/copilot.vim
 
-4.  Start Neovim and invoke `:Copilot setup`.
+5.  Start Neovim and invoke `:Copilot setup`.
 
 [Node.js]: https://nodejs.org/en/download/
 [Neovim prerelease build]: https://github.com/github/copilot.vim/releases/tag/neovim-nightlies
