@@ -10,6 +10,19 @@ Copilot.vim is a Vim plugin for GitHub Copilot.  For now, it requires a Neovim
 
 To learn more about GitHub Copilot, visit https://copilot.github.com.
 
+## Technical Preview
+
+Access to GitHub Copilot is limited to a small group of testers during the
+technical preview of GitHub Copilot. If you don’t have access to the technical
+preview, you will see an error when you try to use this extension.
+
+Don’t have access yet? [Sign up for the
+waitlist](https://github.com/features/copilot/signup) for your chance to try
+it out. GitHub will notify you once you have access.
+
+This technical preview is a Beta Preview under the [GitHub Terms of
+Service](https://docs.github.com/en/github/site-policy/github-terms-of-service#j-beta-previews).
+
 ## Getting started
 
 1.  Install [Node.js][] v12 or newer.

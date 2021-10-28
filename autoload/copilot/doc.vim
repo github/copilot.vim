@@ -6,7 +6,7 @@ let g:autoloaded_copilot_prompt = 1
 scriptencoding utf-8
 
 function copilot#doc#UTF16Width(str) abort
-  return strchars(substitute(a:str, "[^\u0001-\uffff]", "  ", 'g'))
+  return strchars(substitute(a:str, "\\%#=2[^\u0001-\uffff]", "  ", 'g'))
 endfunction
 
 let s:language_normalization_map = {

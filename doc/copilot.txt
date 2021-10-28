@@ -49,6 +49,7 @@ g:copilot_filetypes     A dictionary mapping file types to their enabled
 <
                                                 *b:copilot_disabled*
 b:copilot_disabled      Set to v:true to disable GitHub Copilot for the
-                        current buffer.
+                        current buffer.  Or set to v:false force enabling it,
+                        regardless of g:copilot_filetypes.
 
  vim:tw=78:et:ft=help:norl:

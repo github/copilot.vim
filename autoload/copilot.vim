@@ -216,11 +216,17 @@ let s:filetype_defaults = {
       \ 'cvs': 0,
       \ '.': 0}
 
-function! s:FileTypeDisabled(filetype) abort
-  let short = empty(a:filetype) ? '.' : split(a:filetype, '\.', 1)[0]
+function! s:BufferDisabled() abort
+  if exists('b:copilot_disabled')
+    return b:copilot_disabled ? 3 : 0
+  endif
+  if exists('b:copilot_enabled')
+    return b:copilot_enabled ? 4 : 0
+  endif
+  let short = empty(&l:filetype) ? '.' : split(&l:filetype, '\.', 1)[0]
   let config = get(g:, 'copilot_filetypes', {})
-  if has_key(config, a:filetype)
-    return empty(config[a:filetype])
+  if has_key(config, &l:filetype)
+    return empty(config[&l:filetype])
   elseif has_key(config, short)
     return empty(config[short])
   elseif has_key(config, '*')
@@ -233,8 +239,7 @@ endfunction
 function! copilot#Enabled() abort
   return !get(g:, 'copilot_disabled', 0)
         \ && s:TermsAccepted(0)
-        \ && !get(b:, 'copilot_disabled', 0)
-        \ && empty(s:FileTypeDisabled(&filetype))
+        \ && empty(s:BufferDisabled())
         \ && empty(copilot#agent#StartupError())
 endfunction
 
@@ -565,18 +570,20 @@ function s:NetworkStatusMessage() abort
 endfunction
 
 function! s:EnabledStatusMessage() abort
-  let ft_disabled = s:FileTypeDisabled(&filetype)
+  let buf_disabled = s:BufferDisabled()
   if !s:has_ghost_text && bufwinid('copilot://') == -1
     return "Neovim 0.6 prerelease required to support ghost text"
   elseif !copilot#IsMapped()
     return '<Tab> map has been disabled or is claimed by another plugin'
   elseif get(g:, 'copilot_disabled', 0)
     return 'Disabled globally by :Copilot disable'
-  elseif get(b:, 'copilot_disabled', 0)
+  elseif buf_disabled is# 4
+    return 'Disabled for current buffer by b:copilot_enabled'
+  elseif buf_disabled is# 3
     return 'Disabled for current buffer by b:copilot_disabled'
-  elseif ft_disabled is# 2
+  elseif buf_disabled is# 2
     return 'Disabled for filetype=' . &filetype . ' by internal default'
-  elseif ft_disabled
+  elseif buf_disabled
     return 'Disabled for filetype=' . &filetype . ' by g:copilot_filetypes'
   elseif !copilot#Enabled()
     return 'BUG: Something is wrong with enabling/disabling'
@@ -633,7 +640,7 @@ function! s:commands.setup(opts) abort
     let @* = data.user_code
     echo "First copy your one-time code: " . data.user_code
     if len(browser)
-      echo "Press ENTER to open github.com in your browser"
+      echo "Press ENTER to open " . data.verification_uri . " in your browser"
       try
         if len(&mouse)
           let mouse = &mouse
@@ -651,8 +658,6 @@ function! s:commands.setup(opts) abort
       let exit_status = copilot#job#Stream(browser + [data.verification_uri], v:null, v:null)
       if exit_status
         echo "Failed to open browser.  Visit " . data.verification_uri
-      else
-        redraw
       endif
     else
       echo "Could not find browser.  Visit " . data.verification_uri
