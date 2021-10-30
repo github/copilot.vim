@@ -45,3 +45,16 @@ Service](https://docs.github.com/en/github/site-policy/github-terms-of-service#j
 
 Suggestions are displayed inline and can be accepted by pressing the tab key.
 See `:help copilot` for more information.
+
+## Customization
+
+If you would like to change the color of the suggestion text from Copilot
+add a line like the following to your `.vimrc` / `nvim/init.vim`:
+
+```
+hi def CopilotSuggestion guifg=#808080 ctermfg=244
+```
+
+The above are the default values for the GUI and terminal. You might want a 
+[cheat sheet for 256 colors](https://jonasjacek.github.io/colors/) for the
+terminal.
