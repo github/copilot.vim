@@ -221,7 +221,7 @@ function! s:BufferDisabled() abort
     return b:copilot_disabled ? 3 : 0
   endif
   if exists('b:copilot_enabled')
-    return b:copilot_enabled ? 4 : 0
+    return b:copilot_enabled ? 0 : 4
   endif
   let short = empty(&l:filetype) ? '.' : split(&l:filetype, '\.', 1)[0]
   let config = get(g:, 'copilot_filetypes', {})
@@ -237,7 +237,7 @@ function! s:BufferDisabled() abort
 endfunction
 
 function! copilot#Enabled() abort
-  return !get(g:, 'copilot_disabled', 0)
+  return get(g:, 'copilot_enabled', 1)
         \ && s:TermsAccepted(0)
         \ && empty(s:BufferDisabled())
         \ && empty(copilot#agent#StartupError())
@@ -575,7 +575,7 @@ function! s:EnabledStatusMessage() abort
     return "Neovim 0.6 prerelease required to support ghost text"
   elseif !copilot#IsMapped()
     return '<Tab> map has been disabled or is claimed by another plugin'
-  elseif get(g:, 'copilot_disabled', 0)
+  elseif !get(g:, 'copilot_enabled', 1)
     return 'Disabled globally by :Copilot disable'
   elseif buf_disabled is# 4
     return 'Disabled for current buffer by b:copilot_enabled'
@@ -745,11 +745,11 @@ function! s:commands.restart(opts) abort
 endfunction
 
 function! s:commands.disable(opts) abort
-  let g:copilot_disabled = 1
+  let g:copilot_enabled = 0
 endfunction
 
 function! s:commands.enable(opts) abort
-  let g:copilot_disabled = 0
+  let g:copilot_enabled = 1
 endfunction
 
 function! s:commands.split(opts) abort
