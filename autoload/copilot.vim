@@ -320,6 +320,9 @@ function! s:WindowPreview(lines, outdent, delete, ...) abort
     endif
     let buf = s:dest
     let winid = bufwinid(buf)
+    if winid < 0
+      let winid = s:FindPopup(buf)
+    endif
     call setbufvar(buf, '&modifiable', 1)
     let old_lines = getbufline(buf, 1, '$')
     if len(a:lines) < len(old_lines) && old_lines !=# ['']
@@ -329,6 +332,9 @@ function! s:WindowPreview(lines, outdent, delete, ...) abort
       call setbufvar(buf, '&modifiable', 0)
       if winid > 0
         call setmatches([], winid)
+      endif
+      if win_gettype(winid) ==# 'popup'
+        call popup_hide(winid)
       endif
       return
     endif
@@ -349,6 +355,14 @@ function! s:WindowPreview(lines, outdent, delete, ...) abort
         call setmatches([] , winid)
       endif
     endif
+    if win_gettype(winid) ==# 'popup'
+      call popup_setoptions(winid, {
+            \ 'pos': 'topleft',
+            \ 'line': 'cursor',
+            \ 'col': screenpos(win_getid(), line('.'), 1).col,
+            \ 'mask': [[1, col, 1, 1]]})
+      call popup_show(winid)
+    endif
   catch
     call copilot#logger#Exception()
   endtry
@@ -358,6 +372,18 @@ function! s:ClearPreview() abort
   if exists('*nvim_buf_del_extmark')
     call nvim_buf_del_extmark(0, copilot#NvimNs(), 1)
   endif
+endfunction
+
+function! s:FindPopup(bufnr) abort
+  if has('nvim')
+    return -1
+  endif
+  for winid in popup_list()
+    if winbufnr(winid) == a:bufnr
+      return winid
+    endif
+  endfor
+  return -1
 endfunction
 
 function! s:UpdatePreview() abort
@@ -767,6 +793,19 @@ function! s:commands.split(opts) abort
   endif
   return mods . ' pedit copilot://'
 endfunction
+
+if !has('nvim')
+  function! s:commands.popup(opts) abort
+    let bufnr = bufadd('copilot://')
+    call bufload(bufnr)
+    call popup_create(bufnr, {
+          \ 'hidden': 1,
+          \ 'border': [0, 0, 0, 0],
+          \ 'wrap': 0,
+          \ 'zindex': 10,
+          \ 'posinvert': 0})
+  endfunction
+endif
 
 function! copilot#CommandComplete(arg, lead, pos) abort
   let args = matchstr(strpart(a:lead, 0, a:pos), 'C\%[opilot][! ] *\zs.*')
