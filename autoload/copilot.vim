@@ -357,9 +357,9 @@ function! s:WindowPreview(lines, outdent, delete, ...) abort
     endif
     if win_gettype(winid) ==# 'popup'
       call popup_setoptions(winid, {
-            \ 'pos': 'topleft',
             \ 'line': 'cursor',
             \ 'col': screenpos(win_getid(), line('.'), 1).col,
+            \ 'pos': 'topleft',
             \ 'mask': [[1, col, 1, 1]]})
       call popup_show(winid)
     endif
@@ -799,11 +799,14 @@ if !has('nvim')
     let bufnr = bufadd('copilot://')
     call bufload(bufnr)
     call popup_create(bufnr, {
+          \ 'posinvert': 0,
+          \ 'fixed': 1,
+          \ 'flip': 0,
           \ 'hidden': 1,
-          \ 'border': [0, 0, 0, 0],
+          \ 'tabpage': -1,
           \ 'wrap': 0,
-          \ 'zindex': 10,
-          \ 'posinvert': 0})
+          \ 'border': [0, 0, 0, 0],
+          \ 'zindex': 10})
   endfunction
 endif
 
