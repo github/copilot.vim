@@ -311,6 +311,18 @@ function! s:CompletionTextWithAdjustments() abort
   return ['', 0, 0]
 endfunction
 
+function! s:FindPopup(bufnr) abort
+  if has('nvim')
+    return -1
+  endif
+  for winid in popup_list()
+    if winbufnr(winid) == a:bufnr
+      return winid
+    endif
+  endfor
+  return -1
+endfunction
+
 let s:dest = 0
 function! s:WindowPreview(lines, outdent, delete, ...) abort
   try
@@ -372,18 +384,6 @@ function! s:ClearPreview() abort
   if exists('*nvim_buf_del_extmark')
     call nvim_buf_del_extmark(0, copilot#NvimNs(), 1)
   endif
-endfunction
-
-function! s:FindPopup(bufnr) abort
-  if has('nvim')
-    return -1
-  endif
-  for winid in popup_list()
-    if winbufnr(winid) == a:bufnr
-      return winid
-    endif
-  endfor
-  return -1
 endfunction
 
 function! s:UpdatePreview() abort
