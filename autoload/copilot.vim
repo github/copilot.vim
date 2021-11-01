@@ -459,7 +459,21 @@ function! copilot#OnInsertEnter() abort
   let s:is_mapped = copilot#IsMapped()
   let s:dest = bufnr('copilot://')
   if s:dest < 0 && !s:has_ghost_text
-    let s:dest = 0
+    if has('nvim')
+      let s:dest = 0
+    else
+      let s:dest = bufadd('copilot://')
+      call bufload(s:dest)
+      call popup_create(s:dest, {
+            \ 'posinvert': 0,
+            \ 'fixed': 1,
+            \ 'flip': 0,
+            \ 'hidden': 1,
+            \ 'tabpage': -1,
+            \ 'wrap': 0,
+            \ 'border': [0, 0, 0, 0],
+            \ 'zindex': 10})
+    endif
   endif
   return copilot#Schedule()
 endfunction
@@ -793,22 +807,6 @@ function! s:commands.split(opts) abort
   endif
   return mods . ' pedit copilot://'
 endfunction
-
-if !has('nvim')
-  function! s:commands.popup(opts) abort
-    let bufnr = bufadd('copilot://')
-    call bufload(bufnr)
-    call popup_create(bufnr, {
-          \ 'posinvert': 0,
-          \ 'fixed': 1,
-          \ 'flip': 0,
-          \ 'hidden': 1,
-          \ 'tabpage': -1,
-          \ 'wrap': 0,
-          \ 'border': [0, 0, 0, 0],
-          \ 'zindex': 10})
-  endfunction
-endif
 
 function! copilot#CommandComplete(arg, lead, pos) abort
   let args = matchstr(strpart(a:lead, 0, a:pos), 'C\%[opilot][! ] *\zs.*')
