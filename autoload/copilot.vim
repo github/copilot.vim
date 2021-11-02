@@ -424,7 +424,7 @@ function! s:WindowPreview(lines, outdent, delete, ...) abort
       call popup_show(winid)
       let popup_pos = popup_getpos(winid)
       let remain_height = wininfo.winrow + wininfo.height - (popup_pos.line + popup_pos.height)
-      if remain_height <= 0 || line('.') == line('$')
+      if remain_height <= 0 || line('.') == line('$') || popup_pos.height <= 1
         call popup_close(s:FindPseudoSplit(bufnr()))
       else
         let pseudo_split = s:OpenPseudoSplit(bufnr())
