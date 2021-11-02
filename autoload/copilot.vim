@@ -352,13 +352,11 @@ function! s:OpenPseudoSplit(bufnr) abort
         \ 'zindex': 10})
   call setwinvar(winid, 'copilot_pseudo_split', 1)
   for [key, val] in items(getwinvar(0, '&'))
-    if key ==# 'cursorline'
+    if key =~# 'cursorline\|foldmethod'
       continue
     endif
     if key ==# 'wincolor' && empty(val)
       let val = 'Normal'
-    elseif key ==# 'foldenable'
-      let val = 0
     endif
     call setwinvar(winid, '&' .. key, val)
   endfor
