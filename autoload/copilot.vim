@@ -358,7 +358,7 @@ function! s:OpenPseudoSplit(bufnr) abort
     if key ==# 'wincolor' && empty(val)
       let val = 'Normal'
     endif
-    call setwinvar(winid, '&' .. key, val)
+    call setwinvar(winid, '&' . key, val)
   endfor
   return winid
 endfunction
@@ -526,6 +526,16 @@ function! copilot#OnInsertEnter() abort
     else
       let s:dest = bufadd('copilot://')
       silent call bufload(s:dest)
+      " Seems that loading URL doesn't use BufReadCmd, so we need to set
+      " options here
+      for [key, val] in items({
+            \ 'buftype': 'nofile',
+            \ 'bufhidden': 'wipe',
+            \ 'buflisted': 0,
+            \ 'readonly': 1,
+            \ 'modifiable': 0})
+        call setbufvar(s:dest, '&' . key, val)
+      endfor
       call popup_create(s:dest, {
             \ 'posinvert': 0,
             \ 'fixed': 1,
