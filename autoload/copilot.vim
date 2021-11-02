@@ -377,6 +377,9 @@ function! s:WindowPreview(lines, outdent, delete, ...) abort
     if winid < 0
       let winid = s:FindPopup(buf)
     endif
+    " screenpos() returns weird value after setbufvar(), so define
+    " l:leftbarwidth here
+    let leftbarwidth = screenpos(0, line('.'), winsaveview().leftcol + 1).col - win_screenpos(0)[1]
     call setbufvar(buf, '&modifiable', 1)
     let old_lines = getbufline(buf, 1, '$')
     if len(a:lines) < len(old_lines) && old_lines !=# ['']
@@ -412,15 +415,14 @@ function! s:WindowPreview(lines, outdent, delete, ...) abort
     endif
     if win_gettype(winid) ==# 'popup'
       let wininfo = getwininfo(win_getid())[0]
-      let leftbar = screenpos(win_getid(), line('.'), 1).col - wininfo.wincol
       call popup_setoptions(winid, {
             \ 'line': 'cursor',
             \ 'col': wininfo.wincol,
             \ 'pos': 'topleft',
             \ 'maxheight': wininfo.height - winline() + 1,
-            \ 'minwidth': wininfo.width - leftbar,
-            \ 'padding': [0, 0, 0, leftbar],
-            \ 'mask': [[leftbar > 0, leftbar, 1, 1]]})
+            \ 'minwidth': wininfo.width - leftbarwidth,
+            \ 'padding': [0, 0, 0, leftbarwidth],
+            \ 'mask': [[leftbarwidth > 0, leftbarwidth, 1, 1]]})
       call popup_show(winid)
       let popup_pos = popup_getpos(winid)
       let remain_height = wininfo.winrow + wininfo.height - (popup_pos.line + popup_pos.height)
