@@ -1,7 +1,8 @@
 # write_sql
 .go
 {
-    var summaries []
+    var 
+    summaries []
   CategorySummary
     rows, 
   err:=db.Query
