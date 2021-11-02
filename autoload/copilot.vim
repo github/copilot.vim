@@ -323,6 +323,48 @@ function! s:FindPopup(bufnr) abort
   return -1
 endfunction
 
+function! s:FindPseudoSplit(bufnr) abort
+  if has('nvim')
+    return -1
+  endif
+  for winid in popup_list()
+    if getwinvar(winid, 'copilot_pseudo_split') && winbufnr(winid) == a:bufnr
+      return winid
+    endif
+  endfor
+  return -1
+endfunction
+
+function! s:OpenPseudoSplit(bufnr) abort
+  if has('nvim')
+    return -1
+  endif
+  let winid = s:FindPseudoSplit(a:bufnr)
+  if winid > 0
+    return winid
+  endif
+  let winid = popup_create(a:bufnr, {
+        \ 'posinvert': 0,
+        \ 'fixed': 1,
+        \ 'flip': 0,
+        \ 'border': [0, 0, 0, 0],
+        \ 'scrollbar': 0,
+        \ 'zindex': 10})
+  call setwinvar(winid, 'copilot_pseudo_split', 1)
+  for [key, val] in items(getwinvar(0, '&'))
+    if key ==# 'cursorline'
+      continue
+    endif
+    if key ==# 'wincolor' && empty(val)
+      let val = 'Normal'
+    elseif key ==# 'foldenable'
+      let val = 0
+    endif
+    call setwinvar(winid, '&' .. key, val)
+  endfor
+  return winid
+endfunction
+
 let s:dest = 0
 function! s:WindowPreview(lines, outdent, delete, ...) abort
   try
@@ -347,6 +389,7 @@ function! s:WindowPreview(lines, outdent, delete, ...) abort
       endif
       if win_gettype(winid) ==# 'popup'
         call popup_hide(winid)
+        call popup_close(s:FindPseudoSplit(bufnr()))
       endif
       return
     endif
@@ -368,12 +411,31 @@ function! s:WindowPreview(lines, outdent, delete, ...) abort
       endif
     endif
     if win_gettype(winid) ==# 'popup'
+      let wininfo = getwininfo(win_getid())[0]
+      let leftbar = screenpos(win_getid(), line('.'), 1).col - wininfo.wincol
       call popup_setoptions(winid, {
             \ 'line': 'cursor',
-            \ 'col': screenpos(win_getid(), line('.'), 1).col,
+            \ 'col': wininfo.wincol,
             \ 'pos': 'topleft',
-            \ 'mask': [[1, col, 1, 1]]})
+            \ 'maxheight': wininfo.height - winline() + 1,
+            \ 'minwidth': wininfo.width - leftbar,
+            \ 'padding': [0, 0, 0, leftbar],
+            \ 'mask': [[leftbar > 0, leftbar, 1, 1]]})
       call popup_show(winid)
+      let popup_pos = popup_getpos(winid)
+      let remain_height = wininfo.winrow + wininfo.height - (popup_pos.line + popup_pos.height)
+      if remain_height <= 0 || line('.') == line('$')
+        call popup_close(s:FindPseudoSplit(bufnr()))
+      else
+        let pseudo_split = s:OpenPseudoSplit(bufnr())
+        call popup_setoptions(pseudo_split, {
+              \ 'line': popup_pos.line + popup_pos.height,
+              \ 'col': wininfo.wincol,
+              \ 'pos': 'topleft',
+              \ 'maxheight': remain_height,
+              \ 'minwidth': wininfo.width,
+              \ 'firstline': line('.') + 1})
+      endif
     endif
   catch
     call copilot#logger#Exception()
@@ -463,7 +525,7 @@ function! copilot#OnInsertEnter() abort
       let s:dest = 0
     else
       let s:dest = bufadd('copilot://')
-      call bufload(s:dest)
+      silent call bufload(s:dest)
       call popup_create(s:dest, {
             \ 'posinvert': 0,
             \ 'fixed': 1,
