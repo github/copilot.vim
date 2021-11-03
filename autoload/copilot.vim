@@ -435,6 +435,15 @@ function! s:WindowPreview(lines, outdent, delete, ...) abort
               \ 'maxheight': remain_height,
               \ 'minwidth': wininfo.width,
               \ 'firstline': line('.') + 1})
+        let line = line('.')
+        for _ in range(popup_getpos(pseudo_split).height)
+          let line += 1
+          if foldclosed(line) < 0
+            continue
+          endif
+          call win_execute(pseudo_split, printf('%d,%dfold', foldclosed(line), foldclosedend(line)))
+          let line = foldclosedend(line)
+        endfor
       endif
     endif
   catch
