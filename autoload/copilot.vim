@@ -352,7 +352,7 @@ function! s:OpenPseudoSplit(bufnr) abort
         \ 'zindex': 10})
   call setwinvar(winid, 'copilot_pseudo_split', 1)
   for [key, val] in items(getwinvar(0, '&'))
-    if key =~# 'cursorline\|foldmethod'
+    if key =~# 'cursorline\|foldmethod\|signcolumn'
       continue
     endif
     if key ==# 'wincolor' && empty(val)
@@ -360,6 +360,10 @@ function! s:OpenPseudoSplit(bufnr) abort
     endif
     call setwinvar(winid, '&' . key, val)
   endfor
+  let scl = getwinvar(0, '&signcolumn')
+  if scl ==# 'yes' || (scl ==# 'auto' && !empty(sign_getplaced(bufnr(), {'group': '*'})[0].signs))
+    call setwinvar(winid, '&signcolumn', 'yes')
+  endif
   return winid
 endfunction
 
