@@ -149,7 +149,10 @@ function! s:OnExit(agent, code) abort
     let request = remove(a:agent.requests, id)
     let request.status = 'error'
     let request.error = {'code': s:error_exit, 'message': 'Agent exited', 'data': {'status': a:code}}
-    for Cb in reject
+    if !empty(request.reject) && !has_key(request, 'waiting')
+      let request.waiting = {}
+    endif
+    for Cb in request.reject
       let request.waiting[timer_start(0, function('s:Callback', [request, 'error', Cb]))] = 1
     endfor
   endfor
