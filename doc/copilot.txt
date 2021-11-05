@@ -54,6 +54,7 @@ b:copilot_enabled       Set to v:false to disable GitHub Copilot for the
 
 MAPS                                            *copilot-maps*
 
+                                                *copilot-i_<Tab>*
 Copilot.vim uses <Tab> to accept the current suggestion.  If you have an
 existing <Tab> map, that will be used as the fallback when no suggestion is
 displayed.
@@ -68,6 +69,11 @@ copilot#Accept().  Here's an example with CTRL-J:
 The argument to copilot#Accept() is the fallback for when no suggestion is
 displayed.  In this example, a regular carriage return is used.  If no
 fallback is desired, use an argument of "" (an empty string).
+
+Other Maps ~
+
+                                                *copilot-i_CTRL-]*
+<C-]>                   Dismiss the current suggestion.
 
 SYNTAX HIGHLIGHTING                             *copilot-highlighting*
 

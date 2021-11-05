@@ -41,7 +41,7 @@ function! s:LogSend(request, line) abort
 endfunction
 
 let s:chansend = function(exists('*chansend') ? 'chansend' : 'ch_sendraw')
-function! s:Transmit(agent, request) abort
+function! s:Send(agent, request) abort
   let request = extend({'jsonrpc': '2.0'}, a:request, 'keep')
   let line = json_encode(request)
   call s:chansend(a:agent.job, line . "\n")
@@ -50,17 +50,40 @@ function! s:Transmit(agent, request) abort
 endfunction
 
 function! s:AgentNotify(method, params) dict abort
-  return s:Transmit(self, {'method': a:method, 'params': a:params})
+  return s:Send(self, {'method': a:method, 'params': a:params})
+endfunction
+
+function! s:RequestWait() dict abort
+  while self.status ==# 'running'
+    sleep 1m
+  endwhile
+  while !empty(get(self, 'waiting', {}))
+    sleep 1m
+  endwhile
+  return self
+endfunction
+
+function! s:RequestAwait() dict abort
+  call self.Wait()
+  if has_key(self, 'result')
+    return self.result
+  endif
+  throw 'copilot#agent(' . self.error.code . '): ' . self.error.message
 endfunction
 
 if !exists('s:id')
   let s:id = 0
 endif
-function! s:AgentSend(method, params, ...) dict abort
+function! s:AgentRequest(method, params, ...) dict abort
   let s:id += 1
   let request = {'method': a:method, 'params': a:params, 'id': s:id}
-  call s:Transmit(self, request)
-  call extend(request, {'resolve': [], 'reject': [], 'status': 'running'})
+  call s:Send(self, request)
+  call extend(request, {
+        \ 'Wait': function('s:RequestWait'),
+        \ 'Await': function('s:RequestAwait'),
+        \ 'resolve': [],
+        \ 'reject': [],
+        \ 'status': 'running'})
   let self.requests[s:id] = request
   let args = a:000[2:-1]
   if len(args)
@@ -82,11 +105,11 @@ function! s:AgentSend(method, params, ...) dict abort
 endfunction
 
 function! s:AgentCall(method, params, ...) dict abort
-  let request = call(self.Send, [a:method, a:params] + a:000)
+  let request = call(self.Request, [a:method, a:params] + a:000)
   if a:0
     return request
   endif
-  return copilot#agent#Await(request)
+  return request.Await()
 endfunction
 
 function! s:AgentCancel(request) dict abort
@@ -111,7 +134,7 @@ function! s:OnOut(agent, line) abort
 
   let id = get(response, 'id', v:null)
   if has_key(response, 'method') && len(id)
-    return s:Transmit(a:agent, {"id": id, "code": -32700, "message": "Method not found: " . method})
+    return s:Send(a:agent, {"id": id, "code": -32700, "message": "Method not found: " . method})
   endif
   if !has_key(a:agent.requests, id)
     return
@@ -147,6 +170,12 @@ function! s:OnExit(agent, code) abort
   call remove(a:agent, 'job')
   for id in sort(keys(a:agent.requests), { a, b -> a > b })
     let request = remove(a:agent.requests, id)
+    if request.status ==# 'canceled'
+      return
+    endif
+    let request.waiting = {}
+    call remove(request, 'resolve')
+    let reject = remove(request, 'reject')
     let request.status = 'error'
     let request.error = {'code': s:error_exit, 'message': 'Agent exited', 'data': {'status': a:code}}
     for Cb in reject
@@ -219,7 +248,7 @@ function! s:New() abort
   let instance = {'requests': {},
         \ 'Close': function('s:AgentClose'),
         \ 'Notify': function('s:AgentNotify'),
-        \ 'Send': function('s:AgentSend'),
+        \ 'Request': function('s:AgentRequest'),
         \ 'Call': function('s:AgentCall'),
         \ 'Cancel': function('s:AgentCancel'),
         \ }
@@ -228,7 +257,7 @@ function! s:New() abort
         \ function('s:OnErr', [instance]),
         \ function('s:OnExit', [instance]))
   let instance.pid = exists('*jobpid') ? jobpid(instance.job) : job_info(instance.job).process
-  let request = instance.Send('getVersion', {}, function('s:GetVersionResult'), function('s:GetVersionError'), instance)
+  let request = instance.Request('getVersion', {}, function('s:GetVersionResult'), function('s:GetVersionError'), instance)
   return [instance, '']
 endfunction
 
@@ -295,9 +324,9 @@ function! copilot#agent#Notify(method, params) abort
   return instance.Notify(a:method, a:params)
 endfunction
 
-function! copilot#agent#Send(method, params, ...) abort
+function! copilot#agent#Request(method, params, ...) abort
   let instance = copilot#agent#Instance()
-  return call(instance.Send, [a:method, a:params] + a:000)
+  return call(instance.Request, [a:method, a:params] + a:000)
 endfunction
 
 function! copilot#agent#Cancel(request) abort
@@ -333,24 +362,11 @@ function! copilot#agent#Error(request, callback) abort
 endfunction
 
 function! copilot#agent#Wait(request) abort
-  if type(a:request) !=# type({}) || !has_key(a:request, 'status')
-    throw string(a:request)
-  endif
-  while a:request.status ==# 'running'
-    sleep 1m
-  endwhile
-  while !empty(get(a:request, 'waiting', {}))
-    sleep 1m
-  endwhile
-  return a:request
+  return a:request.Wait()
 endfunction
 
 function! copilot#agent#Await(request) abort
-  call copilot#agent#Wait(a:request)
-  if has_key(a:request, 'result')
-    return a:request.result
-  endif
-  throw 'copilot#agent(' . a:request.error.code . '): ' . a:request.error.message
+  return a:request.Await()
 endfunction
 
 function! copilot#agent#Call(method, params, ...) abort
