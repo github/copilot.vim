@@ -543,19 +543,7 @@ function! copilot#OnInsertEnter() abort
     if has('nvim')
       let s:dest = 0
     else
-      let s:dest = bufadd('copilot://')
-      silent call bufload(s:dest)
-      " Seems that loading URL doesn't use BufReadCmd, so we need to set
-      " options here
-      for [key, val] in items({
-            \ 'buftype': 'nofile',
-            \ 'bufhidden': 'wipe',
-            \ 'buflisted': 0,
-            \ 'readonly': 1,
-            \ 'modifiable': 0})
-        call setbufvar(s:dest, '&' . key, val)
-      endfor
-      call popup_create(s:dest, {
+      let winid = popup_create('', {
             \ 'posinvert': 0,
             \ 'fixed': 1,
             \ 'flip': 0,
@@ -564,6 +552,8 @@ function! copilot#OnInsertEnter() abort
             \ 'wrap': 0,
             \ 'border': [0, 0, 0, 0],
             \ 'zindex': 10})
+      call win_execute(winid, 'file copilot://')
+      let s:dest = winbufnr(winid)
     endif
   endif
   return copilot#Schedule()
