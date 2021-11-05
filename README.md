@@ -6,7 +6,7 @@ Codex AI system, trained on public Internet text and billions of lines of
 code.
 
 Copilot.vim is a Vim plugin for GitHub Copilot.  For now, it requires a Neovim
-0.6 prerelease and a Node.js installation.
+0.6 prerelease (for virtual lines support) and a Node.js installation.
 
 To learn more about GitHub Copilot, visit https://copilot.github.com.
 
@@ -45,3 +45,8 @@ Service](https://docs.github.com/en/github/site-policy/github-terms-of-service#j
 
 Suggestions are displayed inline and can be accepted by pressing the tab key.
 See `:help copilot` for more information.
+
+## Limitations
+
+Copilot.vim does not yet support cycling through alternate suggestions on
+Alt+[ and Alt+], or opening the GitHub Copilot panel on Ctrl+Enter.

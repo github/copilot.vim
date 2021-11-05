@@ -88,20 +88,12 @@ function! s:OAuthUserCallback(token, response) abort
   endtry
 endfunction
 
-function! s:InitCodespaces(async) abort
-  if $CODESPACES ==# 'true' && len($GITHUB_TOKEN)
-    let request = copilot#HttpRequest('https://api.github.com/user',
-          \ {'timeout': 5000, 'headers': {'Authorization': 'Bearer ' . $GITHUB_TOKEN}},
-          \ function('s:OAuthUserCallback', [$GITHUB_TOKEN]))
-    if !a:async
-      call copilot#agent#Wait(request)
-    endif
-  endif
-endfunction
+if !exists('s:github') && $CODESPACES ==# 'true' && len($GITHUB_TOKEN)
+  let s:github = {'oauth_token': $GITHUB_TOKEN, 'user': empty($GITHUB_USER) ? 'codespace-user': $GITHUB_USER}
+endif
 
 function! copilot#Init(...) abort
-  call copilot#agent#Start()
-  call s:InitCodespaces(1)
+  call timer_start(0, { _ -> copilot#agent#Start() })
 endfunction
 
 let s:terms_version = '2021-10-14'
@@ -131,6 +123,7 @@ function! s:TermsAccepted(force_reload) abort
     try
       let s:terms_accepted = s:ReadTerms()[s:github.user].version >= s:terms_version
       return s:terms_accepted
+    catch
     endtry
   endif
   let s:terms_accepted = 0
@@ -178,7 +171,7 @@ endfunction
 
 function! s:Auth() abort
   if s:AuthFetch()
-    call copilot#agent#Wait(s:auth_request)
+    call s:auth_request.Wait()
   endif
   if get(get(s:, 'auth_data', {}), 'expires_at') > localtime() + 600
     return s:auth_data
@@ -203,6 +196,13 @@ function! copilot#Clear() abort
     call copilot#agent#Cancel(remove(g:, '_copilot_completion'))
   endif
   call s:UpdatePreview()
+  return ''
+endfunction
+
+function! copilot#Dismiss() abort
+  unlet! b:_copilot_suggestion b:_copilot_completion
+  call copilot#Clear()
+  return ''
 endfunction
 
 let s:filetype_defaults = {
@@ -243,13 +243,18 @@ function! copilot#Enabled() abort
         \ && empty(copilot#agent#StartupError())
 endfunction
 
-function! copilot#Call(method, params, ...) abort
+function! copilot#Request(method, params, ...) abort
   let params = copy(a:params)
   let auth = s:Auth()
   if !empty(auth) && !has_key(params, 'token')
     let params.token = auth.token
   endif
-  return call('copilot#agent#Call', [a:method, params] + a:000)
+  return call('copilot#agent#Request', [a:method, params] + a:000)
+endfunction
+
+function! copilot#Call(method, params, ...) abort
+  let request = call('copilot#Request', [a:method, a:params] + a:000)
+  return a:0 ? request : request.Await()
 endfunction
 
 function! copilot#Complete(...) abort
@@ -266,12 +271,12 @@ function! copilot#Complete(...) abort
       return {}
     endif
     let g:_copilot_completion =
-          \ copilot#agent#Send('getCompletions', {'doc': doc, 'options': {}, 'token': auth.token})
+          \ copilot#agent#Request('getCompletions', {'doc': doc, 'options': {}, 'token': auth.token})
     let g:_copilot_last_completion = g:_copilot_completion
   endif
   let completion = g:_copilot_completion
   if !a:0
-    return copilot#agent#Await(completion)
+    return completion.Await()
   else
     call copilot#agent#Result(completion, a:1)
     if a:0 > 1
@@ -280,12 +285,12 @@ function! copilot#Complete(...) abort
   endif
 endfunction
 
-function! s:CompletionTextWithAdjustments() abort
+function! s:SuggestionTextWithAdjustments() abort
   try
     if mode() !~# '^[iR]' || pumvisible() || !s:dest
       return ['', 0, 0]
     endif
-    let choice = get(b:, '_copilot_completion', {})
+    let choice = get(b:, '_copilot_suggestion', {})
     if !has_key(choice, 'range') || choice.range.start.line != line('.') - 1
       return ['', 0, 0]
     endif
@@ -463,7 +468,7 @@ endfunction
 
 function! s:UpdatePreview() abort
   try
-    let [text, outdent, delete] = s:CompletionTextWithAdjustments()
+    let [text, outdent, delete] = s:SuggestionTextWithAdjustments()
     let text = split(text, "\n", 1)
     if empty(text[-1])
       call remove(text, -1)
@@ -487,12 +492,13 @@ function! s:UpdatePreview() abort
   endtry
 endfunction
 
-function! s:AfterComplete(result) abort
+function! s:HandleTriggerResult(result) abort
   if exists('a:result.completions')
-    let b:_copilot_completion = get(a:result.completions, 0, {})
+    let b:_copilot_suggestion = get(a:result.completions, 0, {})
   else
-    let b:_copilot_completion = {}
+    let b:_copilot_suggestion = {}
   endif
+  let b:_copilot_completion = b:_copilot_suggestion
   call s:UpdatePreview()
 endfunction
 
@@ -506,7 +512,7 @@ function! s:Trigger(bufnr, timer) abort
     let g:_copilot_timer = timer_start(100, function('s:Trigger', [a:bufnr]))
     return
   endif
-  call copilot#Complete(function('s:AfterComplete'), function('s:AfterComplete'))
+  call copilot#Complete(function('s:HandleTriggerResult'), function('s:HandleTriggerResult'))
 endfunction
 
 function! copilot#IsMapped() abort
@@ -526,7 +532,7 @@ function! copilot#Schedule(...) abort
 endfunction
 
 function! copilot#OnInsertLeave() abort
-  unlet! b:_copilot_completion
+  unlet! b:_copilot_suggestion b:_copilot_completion
   return copilot#Clear()
 endfunction
 
@@ -580,9 +586,9 @@ function! copilot#SuggestionText() abort
 endfunction
 
 function! copilot#Accept(...) abort
-  let [text, outdent, delete] = s:CompletionTextWithAdjustments()
+  let [text, outdent, delete] = s:SuggestionTextWithAdjustments()
   if !empty(text)
-    silent! call remove(b:, '_copilot_completion')
+    unlet! b:_copilot_suggestion b:_copilot_completion
     call s:ClearPreview()
     let s:suggestion_text = text
     return repeat("\<Left>\<Del>", outdent) . repeat("\<Del>", delete) .
@@ -751,9 +757,6 @@ function! s:commands.setup(opts) abort
 
   let browser = copilot#Browser()
 
-  if !exists('s:github')
-    call s:InitCodespaces(0)
-  endif
   if empty(s:OAuthToken()) || empty(s:Auth()) || a:opts.bang
     let response = copilot#HttpRequest('https://github.com/login/device/code', {
           \ 'method': 'POST',
@@ -764,42 +767,44 @@ function! s:commands.setup(opts) abort
     let @+ = data.user_code
     let @* = data.user_code
     echo "First copy your one-time code: " . data.user_code
-    if len(browser)
-      echo "Press ENTER to open " . data.verification_uri . " in your browser"
-      try
-        if len(&mouse)
-          let mouse = &mouse
-          set mouse=
-        endif
+    try
+      if len(&mouse)
+        let mouse = &mouse
+        set mouse=
+      endif
+      if len(browser)
+        echo "Press ENTER to open GitHub your browser"
         let c = getchar()
         while c isnot# 13 && c isnot# 10 && c isnot# 0
           let c = getchar()
         endwhile
-      finally
-        if exists('mouse')
-          let &mouse = mouse
+        let exit_status = copilot#job#Stream(browser + [data.verification_uri], v:null, v:null)
+        if exit_status
+          echo "Failed to open browser.  Visit " . data.verification_uri
+        else
+          echo "Opened " . data.verification_uri
         endif
+      else
+        echo "Could not find browser.  Visit " . data.verification_uri
+      endif
+      echo "Waiting (could take up to 5 seconds)"
+      let result = {}
+      call timer_start((data.interval+1) * 1000, function('s:DevicePoll', [result, data]))
+      try
+        while !has_key(result, 'success')
+          sleep 100m
+        endwhile
+      finally
+        if !has_key(result, 'success')
+          let result.success = 0
+          let result.error = "Interrupt"
+        endif
+        redraw
       endtry
-      let exit_status = copilot#job#Stream(browser + [data.verification_uri], v:null, v:null)
-      if exit_status
-        echo "Failed to open browser.  Visit " . data.verification_uri
-      endif
-    else
-      echo "Could not find browser.  Visit " . data.verification_uri
-    endif
-    echo "Waiting (could take up to 5 seconds)"
-    let result = {}
-    call timer_start((data.interval+1) * 1000, function('s:DevicePoll', [result, data]))
-    try
-      while !has_key(result, 'success')
-        sleep 100m
-      endwhile
     finally
-      if !has_key(result, 'success')
-        let result.success = 0
-        let result.error = "Interrupt"
+      if exists('mouse')
+        let &mouse = mouse
       endif
-      redraw
     endtry
     if !result.success
       return 'echoerr ' . string('Copilot: Authentication failure: ' . result.error)

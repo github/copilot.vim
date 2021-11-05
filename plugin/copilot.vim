@@ -19,7 +19,7 @@ function! s:ColorScheme() abort
   endif
 endfunction
 
-function! s:Map() abort
+function! s:MapTab() abort
   if get(g:, 'copilot_no_tab_map') || get(g:, 'copilot_no_maps')
     return
   endif
@@ -58,13 +58,19 @@ augroup github_copilot
   autocmd CursorMovedI         * call s:Event('CursorMovedI')
   autocmd CompleteChanged      * call s:Event('CompleteChanged')
   autocmd ColorScheme,VimEnter * call s:ColorScheme()
-  autocmd VimEnter             * call s:Map()
+  autocmd VimEnter             * call s:MapTab()
   autocmd BufReadCmd copilot://* setlocal buftype=nofile bufhidden=wipe nobuflisted readonly nomodifiable
 augroup END
 
 call s:ColorScheme()
-call s:Map()
-call timer_start(0, { _ -> copilot#Init() })
+call s:MapTab()
+if !get(g:, 'copilot_no_maps')
+  if empty(mapcheck('<C-]>', 'i'))
+    imap <silent><script><nowait><expr> <C-]> copilot#Dismiss() . "\<C-]>"
+  endif
+endif
+
+call copilot#Init()
 
 let s:dir = expand('<sfile>:h:h')
 if getftime(s:dir . '/doc/copilot.txt') > getftime(s:dir . '/doc/tags')
