@@ -384,35 +384,46 @@ function! s:WindowPreview(lines, outdent, delete, ...) abort
     if winid < 0
       let winid = s:FindPopup(buf)
     endif
-    " screenpos() returns weird value after setbufvar(), so define
-    " l:leftbarwidth here
-    let leftbarwidth = screenpos(0, line('.'), winsaveview().leftcol + 1).col - win_screenpos(0)[1]
-    call setbufvar(buf, '&modifiable', 1)
-    let old_lines = getbufline(buf, 1, '$')
-    if len(a:lines) < len(old_lines) && old_lines !=# ['']
-      silent call deletebufline(buf, 1, '$')
-    endif
-    if empty(a:lines)
-      call setbufvar(buf, '&modifiable', 0)
-      if winid > 0
-        call setmatches([], winid)
-      endif
-      if win_gettype(winid) ==# 'popup'
+    if win_gettype(winid) ==# 'popup'
+      if empty(a:lines)
         call popup_hide(winid)
         call popup_close(s:FindPseudoSplit(bufnr()))
+        return
       endif
-      return
+      " screenpos() returns weird value after setbufvar(), so define
+      " l:leftbarwidth here
+      let leftbarwidth = screenpos(0, line('.'), winsaveview().leftcol + 1).col - win_screenpos(0)[1]
+      let col = col('.') - a:outdent - 1
+      let text = [strpart(getline('.'), 0, col) . a:lines[0]] + a:lines[1:-1]
+      call popup_settext(winid, text)
+      call setbufvar(buf, '&tabstop', &tabstop)
+      if getbufvar(buf, '&filetype') !=# 'copilot.' . &filetype
+        silent! call setbufvar(buf, '&filetype', 'copilot.' . &filetype)
+      endif
+    else
+      call setbufvar(buf, '&modifiable', 1)
+      let old_lines = getbufline(buf, 1, '$')
+      if len(a:lines) < len(old_lines) && old_lines !=# ['']
+        silent call deletebufline(buf, 1, '$')
+      endif
+      if empty(a:lines)
+        call setbufvar(buf, '&modifiable', 0)
+        if winid > 0
+          call setmatches([], winid)
+        endif
+        return
+      endif
+      let col = col('.') - a:outdent - 1
+      let text = [strpart(getline('.'), 0, col) . a:lines[0]] + a:lines[1:-1]
+      if old_lines !=# text
+        silent call setbufline(buf, 1, text)
+      endif
+      call setbufvar(buf, '&tabstop', &tabstop)
+      if getbufvar(buf, '&filetype') !=# 'copilot.' . &filetype
+        silent! call setbufvar(buf, '&filetype', 'copilot.' . &filetype)
+      endif
+      call setbufvar(buf, '&modifiable', 0)
     endif
-    let col = col('.') - a:outdent - 1
-    let text = [strpart(getline('.'), 0, col) . a:lines[0]] + a:lines[1:-1]
-    if old_lines !=# text
-      silent call setbufline(buf, 1, text)
-    endif
-    call setbufvar(buf, '&tabstop', &tabstop)
-    if getbufvar(buf, '&filetype') !=# 'copilot.' . &filetype
-      silent! call setbufvar(buf, '&filetype', 'copilot.' . &filetype)
-    endif
-    call setbufvar(buf, '&modifiable', 0)
     if winid > 0
       if col > 0
         call setmatches([{'group': s:hlgroup, 'id': 4, 'priority': 10, 'pos1': [1, 1, col]}] , winid)
