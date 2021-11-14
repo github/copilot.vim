@@ -408,6 +408,7 @@ function! s:WindowPreview(lines, outdent, delete, ...) abort
             \ 'col': wininfo.wincol,
             \ 'pos': 'topleft',
             \ 'maxheight': wininfo.height - winline() + 1,
+            \ 'maxwidth': wininfo.width - leftbarwidth,
             \ 'minwidth': wininfo.width - leftbarwidth,
             \ 'padding': [0, 0, 0, leftbarwidth],
             \ 'mask': [[0, leftbarwidth + strdisplaywidth(typed), 1, 1]]})
@@ -423,6 +424,7 @@ function! s:WindowPreview(lines, outdent, delete, ...) abort
               \ 'col': wininfo.wincol,
               \ 'pos': 'topleft',
               \ 'maxheight': remain_height,
+              \ 'maxwidth': wininfo.width,
               \ 'minwidth': wininfo.width,
               \ 'firstline': line('.') + 1})
         let line = line('.')
