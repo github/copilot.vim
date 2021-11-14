@@ -561,6 +561,7 @@ function! copilot#OnInsertEnter() abort
             \ 'hidden': 1,
             \ 'tabpage': -1,
             \ 'wrap': 0,
+            \ 'highlight': s:hlgroup,
             \ 'border': [0, 0, 0, 0],
             \ 'zindex': 10})
       call win_execute(winid, 'file copilot://')
