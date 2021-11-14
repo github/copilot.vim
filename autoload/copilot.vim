@@ -386,6 +386,7 @@ function! s:WindowPreview(lines, outdent, delete, ...) abort
     endif
     if win_gettype(winid) ==# 'popup'
       if empty(a:lines)
+        call popup_settext(winid, '')
         call popup_hide(winid)
         call popup_close(s:FindPseudoSplit(bufnr()))
         return
@@ -394,44 +395,13 @@ function! s:WindowPreview(lines, outdent, delete, ...) abort
       " l:leftbarwidth here
       let leftbarwidth = screenpos(0, line('.'), winsaveview().leftcol + 1).col - win_screenpos(0)[1]
       let col = col('.') - a:outdent - 1
-      let text = [strpart(getline('.'), 0, col) . a:lines[0]] + a:lines[1:-1]
+      let typed = strpart(getline('.'), 0, col)
+      let text = [typed . a:lines[0]] + a:lines[1:-1]
       call popup_settext(winid, text)
       call setbufvar(buf, '&tabstop', &tabstop)
       if getbufvar(buf, '&filetype') !=# 'copilot.' . &filetype
         silent! call setbufvar(buf, '&filetype', 'copilot.' . &filetype)
       endif
-    else
-      call setbufvar(buf, '&modifiable', 1)
-      let old_lines = getbufline(buf, 1, '$')
-      if len(a:lines) < len(old_lines) && old_lines !=# ['']
-        silent call deletebufline(buf, 1, '$')
-      endif
-      if empty(a:lines)
-        call setbufvar(buf, '&modifiable', 0)
-        if winid > 0
-          call setmatches([], winid)
-        endif
-        return
-      endif
-      let col = col('.') - a:outdent - 1
-      let text = [strpart(getline('.'), 0, col) . a:lines[0]] + a:lines[1:-1]
-      if old_lines !=# text
-        silent call setbufline(buf, 1, text)
-      endif
-      call setbufvar(buf, '&tabstop', &tabstop)
-      if getbufvar(buf, '&filetype') !=# 'copilot.' . &filetype
-        silent! call setbufvar(buf, '&filetype', 'copilot.' . &filetype)
-      endif
-      call setbufvar(buf, '&modifiable', 0)
-    endif
-    if winid > 0
-      if col > 0
-        call setmatches([{'group': s:hlgroup, 'id': 4, 'priority': 10, 'pos1': [1, 1, col]}] , winid)
-      else
-        call setmatches([] , winid)
-      endif
-    endif
-    if win_gettype(winid) ==# 'popup'
       let wininfo = getwininfo(win_getid())[0]
       call popup_setoptions(winid, {
             \ 'line': 'cursor',
@@ -440,7 +410,7 @@ function! s:WindowPreview(lines, outdent, delete, ...) abort
             \ 'maxheight': wininfo.height - winline() + 1,
             \ 'minwidth': wininfo.width - leftbarwidth,
             \ 'padding': [0, 0, 0, leftbarwidth],
-            \ 'mask': [[leftbarwidth > 0, leftbarwidth, 1, 1]]})
+            \ 'mask': [[0, leftbarwidth + strdisplaywidth(typed), 1, 1]]})
       call popup_show(winid)
       let popup_pos = popup_getpos(winid)
       let remain_height = wininfo.winrow + wininfo.height - (popup_pos.line + popup_pos.height)
@@ -464,6 +434,36 @@ function! s:WindowPreview(lines, outdent, delete, ...) abort
           call win_execute(pseudo_split, printf('%d,%dfold', foldclosed(line), foldclosedend(line)))
           let line = foldclosedend(line)
         endfor
+      endif
+      return
+    endif
+    call setbufvar(buf, '&modifiable', 1)
+    let old_lines = getbufline(buf, 1, '$')
+    if len(a:lines) < len(old_lines) && old_lines !=# ['']
+      silent call deletebufline(buf, 1, '$')
+    endif
+    if empty(a:lines)
+      call setbufvar(buf, '&modifiable', 0)
+      if winid > 0
+        call setmatches([], winid)
+      endif
+      return
+    endif
+    let col = col('.') - a:outdent - 1
+    let text = [strpart(getline('.'), 0, col) . a:lines[0]] + a:lines[1:-1]
+    if old_lines !=# text
+      silent call setbufline(buf, 1, text)
+    endif
+    call setbufvar(buf, '&tabstop', &tabstop)
+    if getbufvar(buf, '&filetype') !=# 'copilot.' . &filetype
+      silent! call setbufvar(buf, '&filetype', 'copilot.' . &filetype)
+    endif
+    call setbufvar(buf, '&modifiable', 0)
+    if winid > 0
+      if col > 0
+        call setmatches([{'group': s:hlgroup, 'id': 4, 'priority': 10, 'pos1': [1, 1, col]}] , winid)
+      else
+        call setmatches([] , winid)
       endif
     endif
   catch
