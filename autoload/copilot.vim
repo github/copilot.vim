@@ -392,9 +392,10 @@ function! s:WindowPreview(lines, outdent, delete, ...) abort
         call popup_close(s:FindPseudoSplit(bufnr()))
         return
       endif
-      " screenpos() returns weird value after setbufvar(), so define
-      " l:leftbarwidth here
-      let leftbarwidth = screenpos(0, line('.'), winsaveview().leftcol + 1).col - win_screenpos(0)[1]
+      if !has('patch-8.2.3627')
+        " screenpos() returns weird value after setbufvar(), so define l:leftbarwidth here
+        let leftbarwidth = screenpos(0, line('.'), winsaveview().leftcol + 1).col - win_screenpos(0)[1]
+      endif
       let col = col('.') - a:outdent - 1
       let typed = strpart(getline('.'), 0, col)
       let text = [typed . a:lines[0]] + a:lines[1:-1]
@@ -404,15 +405,18 @@ function! s:WindowPreview(lines, outdent, delete, ...) abort
         silent! call setbufvar(buf, '&filetype', 'copilot.' . &filetype)
       endif
       let wininfo = getwininfo(win_getid())[0]
+      if !has('patch-8.2.3627')
+        let wininfo.textoff = leftbarwidth
+      endif
       call popup_setoptions(winid, {
             \ 'line': 'cursor',
             \ 'col': wininfo.wincol,
             \ 'pos': 'topleft',
             \ 'maxheight': wininfo.height - winline() + 1,
-            \ 'maxwidth': wininfo.width - leftbarwidth,
-            \ 'minwidth': wininfo.width - leftbarwidth,
-            \ 'padding': [0, 0, 0, leftbarwidth],
-            \ 'mask': [[0, leftbarwidth + strdisplaywidth(typed), 1, 1]]})
+            \ 'maxwidth': wininfo.width - wininfo.textoff,
+            \ 'minwidth': wininfo.width - wininfo.textoff,
+            \ 'padding': [0, 0, 0, wininfo.textoff],
+            \ 'mask': [[0, wininfo.textoff + strdisplaywidth(typed), 1, 1]]})
       call popup_show(winid)
       let popup_pos = popup_getpos(winid)
       let remain_height = wininfo.winrow + wininfo.height - (popup_pos.line + popup_pos.height)
