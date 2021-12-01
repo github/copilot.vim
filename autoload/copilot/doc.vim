@@ -49,7 +49,7 @@ function! copilot#doc#Get() abort
         \ 'indentSize': shiftwidth(),
         \ }
   let line = getline('.')
-  let col_byte = col('.') - (mode() !~# '^[iR]' || empty(line))
+  let col_byte = col('.') - (mode() =~# '^[iR]' || empty(line))
   let col_utf16 = copilot#doc#UTF16Width(strpart(line, 0, col_byte))
   let doc.position = {'line': line('.') - 1, 'character': col_utf16}
   let lines = getline(1, '$')
