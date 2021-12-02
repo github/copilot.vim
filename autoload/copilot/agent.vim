@@ -30,14 +30,7 @@ function! s:AgentClose() dict abort
 endfunction
 
 function! s:LogSend(request, line) abort
-  if type(get(a:request, 'params')) == v:t_dict && has_key(a:request.params, 'token')
-    let request = deepcopy(a:request)
-    let request.params.token = 'REDACTED'
-    let line = json_encode(request)
-  else
-    let line = a:line
-  endif
-  return '--> ' . line
+  return '--> ' . a:line
 endfunction
 
 let s:chansend = function(exists('*chansend') ? 'chansend' : 'ch_sendraw')
@@ -168,7 +161,7 @@ endfunction
 function! s:OnExit(agent, code) abort
   let a:agent.exit_status = a:code
   call remove(a:agent, 'job')
-  for id in sort(keys(a:agent.requests), { a, b -> a > b })
+  for id in sort(keys(a:agent.requests), { a, b -> +a > +b })
     let request = remove(a:agent.requests, id)
     if request.status ==# 'canceled'
       return
@@ -177,7 +170,8 @@ function! s:OnExit(agent, code) abort
     call remove(request, 'resolve')
     let reject = remove(request, 'reject')
     let request.status = 'error'
-    let request.error = {'code': s:error_exit, 'message': 'Agent exited', 'data': {'status': a:code}}
+    let code = a:code < 0 || a:code > 255 ? 256 : a:code
+    let request.error = {'code': code, 'message': 'Agent exited', 'data': {'status': a:code}}
     for Cb in reject
       let request.waiting[timer_start(0, function('s:Callback', [request, 'error', Cb]))] = 1
     endfor
@@ -190,6 +184,20 @@ function! copilot#agent#Close() abort
     let instance = remove(s:, 'instance')
     call instance.Close()
   endif
+endfunction
+
+unlet! s:is_arm_macos
+function! s:IsArmMacOS() abort
+  if exists('s:is_arm_macos')
+    return s:is_arm_macos
+  elseif has('win32') || !isdirectory('/private')
+    let s:is_arm_macos = 0
+  else
+    let out = []
+    call copilot#job#Stream(['uname', '-s', '-p'], function('add', [out]), v:null)
+    let s:is_arm_macos = get(out, 0, '') ==# 'Darwin arm'
+  endif
+  return s:is_arm_macos
 endfunction
 
 function! s:Command() abort
@@ -214,8 +222,12 @@ function! s:Command() abort
     return [v:null, 'Node exited with status ' . status]
   endif
   let major = +matchstr(get(out, 0, ''), '^v\zs\d\+\ze\.')
-  if major < 12
-    return [v:null, 'Node v12+ required but found ' . get(out, 0, 'nothing')]
+  if !get(g:, 'copilot_ignore_node_version')
+    if major < 16 && s:IsArmMacOS()
+      return [v:null, 'Node v16+ required on Apple Silicon but found ' . get(out, 0, 'nothing')]
+    elseif major < 12
+      return [v:null, 'Node v12+ required but found ' . get(out, 0, 'nothing')]
+    endif
   endif
   let agent = s:root . '/copilot/dist/agent.js'
   if !filereadable(agent)

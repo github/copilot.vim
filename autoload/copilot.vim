@@ -43,7 +43,7 @@ function! s:OAuthToken() abort
   endif
   if getfsize(s:config_hosts) > 0
     try
-      let s:github = get(json_decode(join(readfile(s:config_hosts))), 'github.com')
+      let s:github = get(json_decode(join(readfile(s:config_hosts))), 'github.com', {})
     catch
       let s:github = {}
     endtry
@@ -130,60 +130,6 @@ function! s:TermsAccepted(force_reload) abort
   return s:terms_accepted
 endfunction
 
-function! s:AuthException(response, ...) abort
-  unlet! s:auth_request
-endfunction
-
-function! s:AuthCallback(response, ...) abort
-  unlet! s:auth_request
-  let data = s:JsonBody(a:response)
-  if a:response.status == 404
-    call s:OAuthSave('', '')
-  elseif has_key(data, 'token')
-    let s:auth_data = data
-  endif
-endfunction
-
-function! s:AuthRefresh() abort
-  let token = s:OAuthToken()
-  if !empty(token)
-    if exists('s:auth_request')
-      return
-    endif
-    let s:auth_request = copilot#HttpRequest(
-          \ 'https://api.github.com/copilot_internal/token',
-          \ {'headers': {'Authorization': 'Bearer ' . token}},
-          \ function('s:AuthCallback'),
-          \ function('s:AuthException'))
-  endif
-endfunction
-
-function! s:AuthFetch() abort
-  let auth = get(s:, 'auth_data', {})
-  if get(auth, 'expires_at') < localtime() - 1800
-    call s:AuthRefresh()
-    return exists('s:auth_request')
-  elseif get(auth, 'expires_at') < localtime() - 7200
-    call s:AuthRefresh()
-    return 0
-  endif
-endfunction
-
-function! s:Auth() abort
-  if s:AuthFetch()
-    call s:auth_request.Wait()
-  endif
-  if get(get(s:, 'auth_data', {}), 'expires_at') > localtime() + 600
-    return s:auth_data
-  else
-    unlet! s:auth_data
-    return {}
-  endif
-endfunction
-
-unlet! s:auth_data
-unlet! s:auth_request
-
 function! copilot#NvimNs() abort
   return nvim_create_namespace('github-copilot')
 endfunction
@@ -244,17 +190,11 @@ function! copilot#Enabled() abort
 endfunction
 
 function! copilot#Request(method, params, ...) abort
-  let params = copy(a:params)
-  let auth = s:Auth()
-  if !empty(auth) && !has_key(params, 'token')
-    let params.token = auth.token
-  endif
-  return call('copilot#agent#Request', [a:method, params] + a:000)
+  return call('copilot#agent#Request', [a:method, a:params] + a:000)
 endfunction
 
 function! copilot#Call(method, params, ...) abort
-  let request = call('copilot#Request', [a:method, a:params] + a:000)
-  return a:0 ? request : request.Await()
+  return call('copilot#agent#Call', [a:method, a:params] + a:000)
 endfunction
 
 function! copilot#Complete(...) abort
@@ -266,12 +206,8 @@ function! copilot#Complete(...) abort
   endif
   let doc = copilot#doc#Get()
   if !exists('g:_copilot_completion.params.doc') || g:_copilot_completion.params.doc !=# doc
-    let auth = s:Auth()
-    if empty(auth)
-      return {}
-    endif
     let g:_copilot_completion =
-          \ copilot#agent#Request('getCompletions', {'doc': doc, 'options': {}, 'token': auth.token})
+          \ copilot#agent#Request('getCompletions', {'doc': doc, 'options': {}})
     let g:_copilot_last_completion = g:_copilot_completion
   endif
   let completion = g:_copilot_completion
@@ -371,6 +307,14 @@ function! s:OpenPseudoSplit(bufnr) abort
     call setwinvar(winid, '&' . key, val)
   endfor
   return winid
+endfunction
+
+function! copilot#GetDisplayedSuggestion() abort
+  let [text, outdent, delete] = s:SuggestionTextWithAdjustments()
+  return {
+        \ 'text': text,
+        \ 'outdentSize': outdent,
+        \ 'deleteSize': delete}
 endfunction
 
 let s:dest = 0
@@ -544,7 +488,6 @@ function! copilot#Schedule(...) abort
   if !s:is_mapped || !s:dest || !copilot#Enabled()
     return
   endif
-  call s:AuthFetch()
   let delay = a:0 ? a:1 : get(g:, 'copilot_idle_delay', 75)
   let g:_copilot_timer = timer_start(delay, function('s:Trigger', [bufnr('')]))
 endfunction
@@ -586,7 +529,7 @@ function! copilot#OnCursorMovedI() abort
   return copilot#Schedule()
 endfunction
 
-function! copilot#SuggestionText() abort
+function! copilot#TextQueuedForInsertion() abort
   try
     return remove(s:, 'suggestion_text')
   catch
@@ -595,13 +538,13 @@ function! copilot#SuggestionText() abort
 endfunction
 
 function! copilot#Accept(...) abort
-  let [text, outdent, delete] = s:SuggestionTextWithAdjustments()
-  if !empty(text)
+  let s = copilot#GetDisplayedSuggestion()
+  if !empty(s.text)
     unlet! b:_copilot_suggestion b:_copilot_completion
     call s:ClearPreview()
-    let s:suggestion_text = text
-    return repeat("\<Left>\<Del>", outdent) . repeat("\<Del>", delete) .
-            \ "\<C-R>\<C-O>=copilot#SuggestionText()\<CR>"
+    let s:suggestion_text = s.text
+    return repeat("\<Left>\<Del>", s.outdentSize) . repeat("\<Del>", s.deleteSize) .
+            \ "\<C-R>\<C-O>=copilot#TextQueuedForInsertion()\<CR>"
   endif
   let default = get(g:, 'copilot_tab_fallback', pumvisible() ? "\<C-N>" : "\t")
   if !a:0
@@ -755,7 +698,20 @@ function! s:commands.status(opts) abort
       return
   endif
 
-  echo 'Copilot: Enabled and engaged'
+  echo 'Copilot: Enabled and online'
+endfunction
+
+function! s:commands.signout(opts) abort
+  unlet! s:github
+  if empty(s:OAuthToken())
+    echo 'Copilot: Not signed in'
+  else
+    let user = get(s:github, 'user', '<unknown>')
+    let s:github = {}
+    echo 'Copilot: Signed out as GitHub user ' . user
+  endif
+  call delete(s:config_hosts)
+  call copilot#Call('signOut', {})
 endfunction
 
 function! s:commands.setup(opts) abort
@@ -854,6 +810,7 @@ function! s:commands.setup(opts) abort
     unlet! s:terms_accepted
   endif
 
+  call copilot#Call('checkStatus', {})
   echo 'Copilot: Authenticated as GitHub user ' . s:github.user
 endfunction
 

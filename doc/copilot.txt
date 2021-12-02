@@ -23,6 +23,9 @@ COMMANDS                                        *:Copilot*
                                                 *:Copilot_setup*
 :Copilot setup          Authenticate and enable GitHub Copilot.
 
+                                                *:Copilot_signout*
+:Copilot signout        Sign out of GitHub Copilot.
+
                                                 *:Copilot_status*
 :Copilot status         Check if GitHub Copilot is operational for the current
                         buffer and report on any issues.
