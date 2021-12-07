@@ -588,7 +588,7 @@ function! s:commands.setup(opts) abort
 
   let browser = copilot#Browser()
 
-  if empty(s:OAuthToken()) || empty(s:Auth()) || a:opts.bang
+  if empty(s:OAuthToken()) || a:opts.bang
     let response = copilot#HttpRequest('https://github.com/login/device/code', {
           \ 'method': 'POST',
           \ 'headers': {'Accept': 'application/json'},
@@ -604,7 +604,7 @@ function! s:commands.setup(opts) abort
         set mouse=
       endif
       if len(browser)
-        echo "Press ENTER to open GitHub your browser"
+        echo "Press ENTER to open GitHub in your browser"
         let c = getchar()
         while c isnot# 13 && c isnot# 10 && c isnot# 0
           let c = getchar()
