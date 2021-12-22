@@ -34,6 +34,16 @@ Service](https://docs.github.com/en/github/site-policy/github-terms-of-service#j
 
         git clone https://github.com/github/copilot.vim.git \
           ~/.config/nvim/pack/github/start/copilot.vim
+    
+    Some plugin managers require an argument to use the main `release` branch. This repository does
+    not use a `master` branch.
+    
+    E.g with vim-plug:
+    
+    ```
+    Plug 'github/copilot.vim', {'branch': 'release'}
+    ```
+
 
 4.  Start Neovim and invoke `:Copilot setup`.
 
