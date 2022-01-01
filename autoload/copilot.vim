@@ -264,39 +264,40 @@ function! s:FindPopup(bufnr) abort
   return -1
 endfunction
 
-function! s:FindPseudoSplit(bufnr) abort
+function! s:FindPseudoSplit(basewinid) abort
   if has('nvim')
     return -1
   endif
   for winid in popup_list()
-    if getwinvar(winid, 'copilot_pseudo_split') && winbufnr(winid) == a:bufnr
+    if getwinvar(winid, 'copilot_pseudo_split') == a:basewinid
       return winid
     endif
   endfor
   return -1
 endfunction
 
-function! s:OpenPseudoSplit(bufnr) abort
+function! s:OpenPseudoSplit(basewinid) abort
   if has('nvim')
     return -1
   endif
-  let winid = s:FindPseudoSplit(a:bufnr)
+  let winid = s:FindPseudoSplit(a:basewinid)
   if winid > 0
     return winid
   endif
-  let winid = popup_create(a:bufnr, {
+  let bufnr = winbufnr(a:basewinid)
+  let winid = popup_create(bufnr, {
         \ 'posinvert': 0,
         \ 'fixed': 1,
         \ 'flip': 0,
         \ 'border': [0, 0, 0, 0],
         \ 'scrollbar': 0,
         \ 'zindex': 10})
-  call setwinvar(winid, 'copilot_pseudo_split', 1)
+  call setwinvar(winid, 'copilot_pseudo_split', a:basewinid)
   let dest_options = getwinvar(0, '&')
   if empty(dest_options.wincolor)
     let dest_options.wincolor = 'Normal'
   endif
-  if dest_options.signcolumn ==# 'auto' && !empty(sign_getplaced(a:bufnr, {'group': '*'})[0].signs)
+  if dest_options.signcolumn ==# 'auto' && !empty(sign_getplaced(bufnr, {'group': '*'})[0].signs)
     let dest_options.signcolumn = 'yes'
   endif
   call remove(dest_options, 'cursorline')
@@ -333,7 +334,7 @@ function! s:WindowPreview(lines, outdent, delete, ...) abort
       if empty(a:lines)
         call popup_settext(winid, '')
         call popup_hide(winid)
-        call popup_close(s:FindPseudoSplit(bufnr()))
+        call popup_close(s:FindPseudoSplit(win_getid()))
         return
       endif
       if !has('patch-8.2.3627')
@@ -365,9 +366,9 @@ function! s:WindowPreview(lines, outdent, delete, ...) abort
       let popup_pos = popup_getpos(winid)
       let remain_height = wininfo.winrow + wininfo.height - (popup_pos.line + popup_pos.height)
       if !get(g:, 'copilot_enable_pseudo_split', 1) || remain_height <= 0 || line('.') == line('$') || popup_pos.height <= 1
-        call popup_close(s:FindPseudoSplit(bufnr()))
+        call popup_close(s:FindPseudoSplit(win_getid()))
       else
-        let pseudo_split = s:OpenPseudoSplit(bufnr())
+        let pseudo_split = s:OpenPseudoSplit(win_getid())
         call popup_setoptions(pseudo_split, {
               \ 'line': popup_pos.line + popup_pos.height,
               \ 'col': wininfo.wincol,
