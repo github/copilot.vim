@@ -289,6 +289,7 @@ function! s:OpenPseudoSplit(basewinid) abort
         \ 'posinvert': 0,
         \ 'fixed': 1,
         \ 'flip': 0,
+        \ 'hidden': 1,
         \ 'border': [0, 0, 0, 0],
         \ 'scrollbar': 0,
         \ 'zindex': 10})
@@ -334,7 +335,7 @@ function! s:WindowPreview(lines, outdent, delete, ...) abort
       if empty(a:lines)
         call popup_settext(winid, '')
         call popup_hide(winid)
-        call popup_close(s:FindPseudoSplit(win_getid()))
+        call popup_hide(s:FindPseudoSplit(win_getid()))
         return
       endif
       if !has('patch-8.2.3627')
@@ -366,7 +367,7 @@ function! s:WindowPreview(lines, outdent, delete, ...) abort
       let popup_pos = popup_getpos(winid)
       let remain_height = wininfo.winrow + wininfo.height - (popup_pos.line + popup_pos.height)
       if !get(g:, 'copilot_enable_pseudo_split', 1) || remain_height <= 0 || line('.') == line('$') || popup_pos.height <= 1
-        call popup_close(s:FindPseudoSplit(win_getid()))
+        call popup_hide(s:FindPseudoSplit(win_getid()))
       else
         let pseudo_split = s:OpenPseudoSplit(win_getid())
         call popup_setoptions(pseudo_split, {
@@ -386,6 +387,7 @@ function! s:WindowPreview(lines, outdent, delete, ...) abort
           call win_execute(pseudo_split, printf('%d,%dfold', foldclosed(line), foldclosedend(line)))
           let line = foldclosedend(line)
         endfor
+        call popup_show(pseudo_split)
       endif
       return
     endif
@@ -495,6 +497,13 @@ endfunction
 
 function! copilot#OnInsertLeave() abort
   unlet! b:_copilot_suggestion b:_copilot_completion
+  if exists('*popup_list')
+    for popup in popup_list()
+      if getwinvar(popup, 'copilot_pseudo_split')
+        call popup_close(popup)
+      endif
+    endfor
+  endif
   return copilot#Clear()
 endfunction
 
