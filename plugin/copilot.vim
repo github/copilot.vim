@@ -2,6 +2,7 @@ if exists('g:loaded_copilot')
   finish
 endif
 let g:loaded_copilot = 1
+let g:copilot_echo_num_completions = 1
 
 scriptencoding utf-8
 

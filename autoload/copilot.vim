@@ -2,7 +2,6 @@ if exists('g:autoloaded_copilot')
   finish
 endif
 let g:autoloaded_copilot = 1
-let g:copilot_echo_complettions = 1
 
 scriptencoding utf-8
 
@@ -341,7 +340,7 @@ endfunction
 
 function! s:HandleTriggerResult(result) abort
   if exists('a:result.completions')
-    if g:copilot_echo_complettions
+    if g:copilot_echo_num_completions
       echo 'copilot:' . len(a:result.completions) . ' completions'
     endif
     let b:_current_copilot_suggestions =  a:result.completions

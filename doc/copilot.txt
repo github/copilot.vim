@@ -55,6 +55,9 @@ b:copilot_enabled       Set to v:false to disable GitHub Copilot for the
                         current buffer.  Or set to v:true to force enabling
                         it, overriding g:copilot_filetypes.
 
+                                                *g:copilot_echo_complettions*
+g:copilot_echo_num_completions Enabling echo of number of suggestions.
+
 MAPS                                            *copilot-maps*
 
                                                 *copilot-i_<Tab>*
