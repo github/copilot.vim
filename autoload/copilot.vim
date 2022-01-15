@@ -2,12 +2,16 @@ if exists('g:autoloaded_copilot')
   finish
 endif
 let g:autoloaded_copilot = 1
+let g:copilot_echo_complettions = 1
 
 scriptencoding utf-8
 
 let s:has_ghost_text = has('nvim-0.6') && exists('*nvim_buf_get_mark')
 
 let s:hlgroup = 'CopilotSuggestion'
+
+let b:_current_copilot_suggestion_index = 0
+let b:_current_copilot_suggestions = {}
 
 if len($XDG_CONFIG_HOME)
   let s:config_root = $XDG_CONFIG_HOME
@@ -207,7 +211,7 @@ function! copilot#Complete(...) abort
   let doc = copilot#doc#Get()
   if !exists('g:_copilot_completion.params.doc') || g:_copilot_completion.params.doc !=# doc
     let g:_copilot_completion =
-          \ copilot#agent#Request('getCompletions', {'doc': doc, 'options': {}})
+          \ copilot#agent#Request('getCompletionsCycling', {'doc': doc, 'options': {}})
     let g:_copilot_last_completion = g:_copilot_completion
   endif
   let completion = g:_copilot_completion
@@ -337,12 +341,33 @@ endfunction
 
 function! s:HandleTriggerResult(result) abort
   if exists('a:result.completions')
+    if g:copilot_echo_complettions
+      echo 'copilot:' . len(a:result.completions) . ' completions'
+    endif
+    let b:_current_copilot_suggestions =  a:result.completions
+    let b:_current_copilot_suggestion_index = 0
     let b:_copilot_suggestion = get(a:result.completions, 0, {})
   else
     let b:_copilot_suggestion = {}
+    let b:_current_copilot_suggestion_index = 0
+    let b:_current_copilot_suggestions =  {}
   endif
   let b:_copilot_completion = b:_copilot_suggestion
   call s:UpdatePreview()
+endfunction
+
+function! copilot#NextResult(direction)
+  let index = b:_current_copilot_suggestion_index + a:direction
+  if index < 0
+    let b:_current_copilot_suggestion_index = len(b:_current_copilot_suggestions) - 1
+  elseif index >= len(b:_current_copilot_suggestions)
+    let b:_current_copilot_suggestion_index = 0
+  else
+    let b:_current_copilot_suggestion_index = index
+  endif
+  let b:_copilot_suggestion = get(b:_current_copilot_suggestions, b:_current_copilot_suggestion_index, {})
+  call s:UpdatePreview()
+  return ""
 endfunction
 
 function! s:Trigger(bufnr, timer) abort

@@ -78,6 +78,12 @@ Other Maps ~
                                                 *copilot-i_CTRL-]*
 <C-]>                   Dismiss the current suggestion.
 
+                                                *copilot-i_ALT-]*
+<A-]>                   Show next inline suggestion.
+
+                                                *copilot-i_ALT-[*
+<A-[>                   Show previous inline suggestion.
+
 SYNTAX HIGHLIGHTING                             *copilot-highlighting*
 
 Inline suggestions are highlighted using the CopilotSuggestion group,

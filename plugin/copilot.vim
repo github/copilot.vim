@@ -76,3 +76,6 @@ let s:dir = expand('<sfile>:h:h')
 if getftime(s:dir . '/doc/copilot.txt') > getftime(s:dir . '/doc/tags')
   silent! execute 'helptags' fnameescape(s:dir . '/doc')
 endif
+
+imap <silent><nowait><expr> <A-]> copilot#NextResult(1)
+imap <silent><nowait><expr> <A-[> copilot#NextResult(-1)
