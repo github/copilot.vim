@@ -45,5 +45,4 @@ See `:help copilot` for more information.
 
 ## Limitations
 
-Copilot.vim does not yet support cycling through alternate suggestions on
-Alt+[ and Alt+], or opening the GitHub Copilot panel on Ctrl+Enter.
+Copilot.vim does not yet support opening the GitHub Copilot panel on Ctrl+Enter.

@@ -5,6 +5,8 @@ let g:autoloaded_copilot_agent = 1
 
 scriptencoding utf-8
 
+let s:plugin_version = '1.1.0'
+
 let s:error_exit = -1
 
 let s:root = expand('<sfile>:h:h:h')
@@ -36,9 +38,9 @@ endfunction
 let s:chansend = function(exists('*chansend') ? 'chansend' : 'ch_sendraw')
 function! s:Send(agent, request) abort
   let request = extend({'jsonrpc': '2.0'}, a:request, 'keep')
-  let line = json_encode(request)
-  call s:chansend(a:agent.job, line . "\n")
-  call copilot#logger#Trace(function('s:LogSend', [request, line]))
+  let body = json_encode(request)
+  call s:chansend(a:agent.job, "Content-Length: " . len(body) . "\r\n\r\n" . body)
+  call copilot#logger#Trace(function('s:LogSend', [request, body]))
   return request
 endfunction
 
@@ -109,15 +111,15 @@ function! s:AgentCancel(request) dict abort
   if has_key(self.requests, get(a:request, 'id', ''))
     call remove(self.requests, a:request.id)
   endif
-  if a:request.status ==# 'running'
+  if get(a:request, 'status', '') ==# 'running'
     let a:request.status = 'canceled'
   endif
 endfunction
 
-function! s:OnOut(agent, line) abort
-  call copilot#logger#Trace({ -> '<-- ' . a:line})
+function! s:OnMessage(agent, body, ...) abort
+  call copilot#logger#Trace({ -> '<-- ' . a:body})
   try
-    let response = json_decode(a:line)
+    let response = json_decode(a:body)
   catch
     return copilot#logger#Exception()
   endtry
@@ -126,7 +128,7 @@ function! s:OnOut(agent, line) abort
   endif
 
   let id = get(response, 'id', v:null)
-  if has_key(response, 'method') && len(id)
+  if has_key(response, 'method') && !empty(id)
     return s:Send(a:agent, {"id": id, "code": -32700, "message": "Method not found: " . method})
   endif
   if !has_key(a:agent.requests, id)
@@ -152,6 +154,39 @@ function! s:OnOut(agent, line) abort
       let request.waiting[timer_start(0, function('s:Callback', [request, 'error', Cb]))] = 1
     endfor
   endif
+endfunction
+
+function! s:OnOut(agent, state, data) abort
+  let a:state.buffer .= a:data
+  while 1
+    if a:state.mode ==# 'body'
+      let content_length = a:state.headers['content-length']
+      if strlen(a:state.buffer) >= content_length
+        let headers = remove(a:state, 'headers')
+        let a:state.mode = 'headers'
+        let a:state.headers = {}
+        let body = strpart(a:state.buffer, 0, content_length)
+        let a:state.buffer = strpart(a:state.buffer, content_length)
+        call timer_start(0, { t -> s:OnMessage(a:agent, body) })
+      else
+        return
+      endif
+    elseif a:state.mode ==# 'headers' && a:state.buffer =~# "\n"
+      let line = matchstr(a:state.buffer, "^.[^\n]*")
+      let a:state.buffer = strpart(a:state.buffer, strlen(line) + 1)
+      let match = matchlist(line, '^\([^:]\+\): \(.\{-\}\)\r$')
+      if len(match)
+        let a:state.headers[tolower(match[1])] = match[2]
+      elseif line =~# "^\r\\=$"
+        let a:state.mode = 'body'
+      else
+        call copilot#logger#Error("Invalid header: " . line)
+        call a:agent.Close()
+      endif
+    else
+      return
+    endif
+  endwhile
 endfunction
 
 function! s:OnErr(agent, line) abort
@@ -195,7 +230,7 @@ function! s:IsArmMacOS() abort
   else
     let out = []
     call copilot#job#Stream(['uname', '-s', '-p'], function('add', [out]), v:null)
-    let s:is_arm_macos = get(out, 0, '') ==# 'Darwin arm'
+    let s:is_arm_macos = join(out, '') =~# '^Darwin arm'
   endif
   return s:is_arm_macos
 endfunction
@@ -221,7 +256,7 @@ function! s:Command() abort
   if status != 0
     return [v:null, 'Node exited with status ' . status]
   endif
-  let major = +matchstr(get(out, 0, ''), '^v\zs\d\+\ze\.')
+  let major = +matchstr(join(out, ''), '^v\zs\d\+\ze\.')
   if !get(g:, 'copilot_ignore_node_version')
     if major < 16 && s:IsArmMacOS()
       return [v:null, 'Node v16+ required on Apple Silicon but found ' . get(out, 0, 'nothing')]
@@ -239,11 +274,25 @@ function! s:Command() abort
   return [node + [agent], '']
 endfunction
 
-function! s:GetVersionResult(result, agent) abort
-  let a:agent.version = get(a:result, 'version', '')
+function! copilot#agent#EditorInfo() abort
+  if !exists('s:editor_version')
+    if has('nvim')
+      let s:editor_version = matchstr(execute('version'), 'NVIM v\zs[^[:space:]]\+')
+    else
+      let s:editor_version = (v:version / 100) . '.' . (v:version % 100) . (exists('v:versionlong') ? printf('.%04d', v:versionlong % 1000) : '')
+    endif
+  endif
+  return {
+        \ 'editorInfo': {'name': has('nvim') ? 'Neovim': 'Vim', 'version': s:editor_version},
+        \ 'editorPluginInfo': {'name': 'copilot.vim', 'version': s:plugin_version}}
 endfunction
 
-function! s:GetVersionError(error, agent) abort
+function! s:GetCapabilitiesResult(result, agent) abort
+  let a:agent.capabilities = get(a:result, 'capabilities', '')
+  call a:agent.Request('setEditorInfo', copilot#agent#EditorInfo())
+endfunction
+
+function! s:GetCapabilitiesError(error, agent) abort
   if a:error.code == s:error_exit
     let a:agent.startup_error = 'Agent exited with status ' . a:error.data.status
   else
@@ -264,12 +313,13 @@ function! s:New() abort
         \ 'Call': function('s:AgentCall'),
         \ 'Cancel': function('s:AgentCancel'),
         \ }
+  let state = {'headers': {}, 'mode': 'headers', 'buffer': ''}
   let instance.job = copilot#job#Stream(command,
-        \ function('s:OnOut', [instance]),
+        \ function('s:OnOut', [instance, state]),
         \ function('s:OnErr', [instance]),
         \ function('s:OnExit', [instance]))
   let instance.pid = exists('*jobpid') ? jobpid(instance.job) : job_info(instance.job).process
-  let request = instance.Request('getVersion', {}, function('s:GetVersionResult'), function('s:GetVersionError'), instance)
+  let request = instance.Request('initialize', {'capabilities': {}}, function('s:GetCapabilitiesResult'), function('s:GetCapabilitiesError'), instance)
   return [instance, '']
 endfunction
 
@@ -303,10 +353,10 @@ function! copilot#agent#StartupError() abort
     return get(s:, 'startup_error', 'Something unexpected went wrong spawning the agent')
   endif
   let instance = s:instance
-  while has_key(instance, 'job') && !has_key(instance, 'startup_error') && !has_key(instance, 'version')
+  while has_key(instance, 'job') && !has_key(instance, 'startup_error') && !has_key(instance, 'capabilities')
     sleep 10m
   endwhile
-  if has_key(instance, 'version')
+  if has_key(instance, 'capabilities')
     return ''
   else
     return get(instance, 'startup_error', 'Something unexpected went wrong running the agent')
@@ -326,9 +376,9 @@ function! copilot#agent#Restart() abort
   return copilot#agent#Start()
 endfunction
 
-function! copilot#agent#Version()
+function! copilot#agent#Capabilities()
   let instance = copilot#agent#Instance()
-  return instance.version
+  return instance.capabilities
 endfunction
 
 function! copilot#agent#Notify(method, params) abort
@@ -345,7 +395,7 @@ function! copilot#agent#Cancel(request) abort
   if exists('s:instance')
     call s:instance.Cancel(a:request)
   endif
-  if a:request.status ==# 'running'
+  if get(a:request, 'status', '') ==# 'running'
     let a:request.status = 'canceled'
   endif
 endfunction
