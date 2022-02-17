@@ -65,8 +65,17 @@ augroup END
 call s:ColorScheme()
 call s:MapTab()
 if !get(g:, 'copilot_no_maps')
+  imap <Plug>(copilot-dismiss)     <Cmd>call copilot#Dismiss()<CR>
   if empty(mapcheck('<C-]>', 'i'))
     imap <silent><script><nowait><expr> <C-]> copilot#Dismiss() . "\<C-]>"
+  endif
+  imap <Plug>(copilot-next)     <Cmd>call copilot#Next()<CR>
+  imap <Plug>(copilot-previous) <Cmd>call copilot#Previous()<CR>
+  if empty(mapcheck('<M-]>', 'i'))
+    imap <M-]> <Plug>(copilot-next)
+  endif
+  if empty(mapcheck('<M-[>', 'i'))
+    imap <M-[> <Plug>(copilot-previous)
   endif
 endif
 

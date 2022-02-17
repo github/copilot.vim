@@ -138,15 +138,20 @@ function! copilot#Clear() abort
   if exists('g:_copilot_timer')
     call timer_stop(remove(g:, '_copilot_timer'))
   endif
-  if exists('g:_copilot_completion')
-    call copilot#agent#Cancel(remove(g:, '_copilot_completion'))
+  if exists('s:uuid')
+    call copilot#Request('notifyRejected', {'uuids': [remove(s:, 'uuid')]})
+  endif
+  if exists('b:_copilot')
+    call copilot#agent#Cancel(get(b:_copilot, 'first', {}))
+    call copilot#agent#Cancel(get(b:_copilot, 'cycling', {}))
+    unlet b:_copilot
   endif
   call s:UpdatePreview()
   return ''
 endfunction
 
 function! copilot#Dismiss() abort
-  unlet! b:_copilot_suggestion b:_copilot_completion
+  unlet! b:_copilot
   call copilot#Clear()
   return ''
 endfunction
@@ -205,12 +210,12 @@ function! copilot#Complete(...) abort
     call timer_stop(remove(g:, '_copilot_timer'))
   endif
   let doc = copilot#doc#Get()
-  if !exists('g:_copilot_completion.params.doc') || g:_copilot_completion.params.doc !=# doc
-    let g:_copilot_completion =
-          \ copilot#agent#Request('getCompletions', {'doc': doc, 'options': {}})
-    let g:_copilot_last_completion = g:_copilot_completion
+  if !exists('b:_copilot.doc') || b:_copilot.doc !=# doc
+    let b:_copilot = {'doc': doc, 'first':
+          \ copilot#agent#Request('getCompletions', {'doc': doc, 'options': {}})}
+    let g:_copilot_last = b:_copilot
   endif
-  let completion = g:_copilot_completion
+  let completion = b:_copilot.first
   if !a:0
     return completion.Await()
   else
@@ -223,33 +228,89 @@ endfunction
 
 function! s:SuggestionTextWithAdjustments() abort
   try
-    if mode() !~# '^[iR]' || pumvisible() || !s:dest
-      return ['', 0, 0]
+    if mode() !~# '^[iR]' || pumvisible() || !s:dest || !exists('b:_copilot.suggestions')
+      return ['', 0, 0, '']
     endif
-    let choice = get(b:, '_copilot_suggestion', {})
+    let choice = get(b:_copilot.suggestions, b:_copilot.choice, {})
     if !has_key(choice, 'range') || choice.range.start.line != line('.') - 1
-      return ['', 0, 0]
+      return ['', 0, 0, '']
     endif
     let line = getline('.')
     let offset = col('.') - 1
     if choice.range.start.character != 0
       call copilot#logger#Warn('unexpected range ' . json_encode(choice.range))
-      return ['', 0, 0]
+      return ['', 0, 0, '']
     endif
     let typed = strpart(line, 0, offset)
     let delete = strchars(strpart(line, offset))
+    let uuid = get(choice, 'uuid', '')
     if typed ==# strpart(choice.text, 0, offset)
-      return [strpart(choice.text, offset), 0, delete]
+      return [strpart(choice.text, offset), 0, delete, uuid]
     elseif typed =~# '^\s*$'
       let leading = matchstr(choice.text, '^\s\+')
       if strpart(typed, 0, len(leading)) == leading
-        return [strpart(choice.text, len(leading)), len(typed) - len(leading), delete]
+        return [strpart(choice.text, len(leading)), len(typed) - len(leading), delete, uuid]
       endif
     endif
   catch
     call copilot#logger#Exception()
   endtry
-  return ['', 0, 0]
+  return ['', 0, 0, '']
+endfunction
+
+
+function! s:Advance(count, context, ...) abort
+  if a:context isnot# get(b:, '_copilot', {})
+    return
+  endif
+  let a:context.choice += a:count
+  if a:context.choice < 0
+    let a:context.choice += len(a:context.suggestions)
+  endif
+  let a:context.choice %= len(a:context.suggestions)
+  call s:UpdatePreview()
+endfunction
+
+function! s:GetSuggestionsCyclingCallback(context, result) abort
+  let callbacks = remove(a:context, 'cycling_callbacks')
+  let seen = {}
+  for suggestion in a:context.suggestions
+    let seen[suggestion.text] = 1
+  endfor
+  for suggestion in get(a:result, 'completions', [])
+    if !has_key(seen, suggestion.text)
+      call add(a:context.suggestions, suggestion)
+      let seen[suggestion.text] = 1
+    endif
+  endfor
+  for Callback in callbacks
+    call Callback(a:context)
+  endfor
+endfunction
+
+function! s:GetSuggestionsCycling(callback) abort
+  if exists('b:_copilot.cycling_callbacks')
+    call add(b:_copilot.cycling_callbacks, a:callback)
+  elseif exists('b:_copilot.cycling')
+    call a:callback(b:_copilot)
+  elseif exists('b:_copilot.suggestions')
+    let b:_copilot.cycling_callbacks = [a:callback]
+    let b:_copilot.cycling = copilot#agent#Request('getCompletionsCycling',
+          \ {'doc': b:_copilot.first.params.doc, 'options': {}},
+          \ function('s:GetSuggestionsCyclingCallback', [b:_copilot]),
+          \ function('s:GetSuggestionsCyclingCallback', [b:_copilot]),
+          \ )
+    call s:UpdatePreview()
+  endif
+  return ''
+endfunction
+
+function! copilot#Next() abort
+  return s:GetSuggestionsCycling(function('s:Advance', [1]))
+endfunction
+
+function! copilot#Previous() abort
+  return s:GetSuggestionsCycling(function('s:Advance', [-1]))
 endfunction
 
 function! s:FindPopup(bufnr) abort
@@ -312,8 +373,10 @@ function! s:OpenPseudoSplit(basewinid) abort
 endfunction
 
 function! copilot#GetDisplayedSuggestion() abort
-  let [text, outdent, delete] = s:SuggestionTextWithAdjustments()
+  let [text, outdent, delete, uuid] = s:SuggestionTextWithAdjustments()
+
   return {
+        \ 'uuid': uuid,
         \ 'text': text,
         \ 'outdentSize': outdent,
         \ 'deleteSize': delete}
@@ -433,7 +496,7 @@ endfunction
 
 function! s:UpdatePreview() abort
   try
-    let [text, outdent, delete] = s:SuggestionTextWithAdjustments()
+    let [text, outdent, delete, uuid] = s:SuggestionTextWithAdjustments()
     let text = split(text, "\n", 1)
     if empty(text[-1])
       call remove(text, -1)
@@ -444,26 +507,39 @@ function! s:UpdatePreview() abort
     if empty(text) || s:dest >= 0
       return s:ClearPreview()
     endif
+    if exists('b:_copilot.cycling_callbacks')
+      let annot = [[' '], ['(1/…)', 'CopilotAnnotation']]
+    elseif exists('b:_copilot.cycling')
+      let annot = [[' '], ['(' . (b:_copilot.choice + 1) . '/' . len(b:_copilot.suggestions) . ')', 'CopilotAnnotation']]
+    else
+      let annot = []
+    endif
     let data = {'id': 1}
     let data.virt_text_win_col = virtcol('.') - 1
     let data.virt_text = [[text[0] . repeat(' ', delete - len(text[0])), s:hlgroup]]
     if len(text) > 1
       let data.virt_lines = map(text[1:-1], { _, l -> [[l, s:hlgroup]] })
+      let data.virt_lines[-1] += annot
+    else
+      let data.virt_text += annot
     endif
     call nvim_buf_del_extmark(0, copilot#NvimNs(), 1)
     call nvim_buf_set_extmark(0, copilot#NvimNs(), line('.')-1, col('.')-1, data)
+    if uuid !=# get(s:, 'uuid', '')
+      let s:uuid = uuid
+      call copilot#Request('notifyShown', {'uuid': uuid})
+    endif
   catch
     return copilot#logger#Exception()
   endtry
 endfunction
 
 function! s:HandleTriggerResult(result) abort
-  if exists('a:result.completions')
-    let b:_copilot_suggestion = get(a:result.completions, 0, {})
-  else
-    let b:_copilot_suggestion = {}
+  if !exists('b:_copilot')
+    return
   endif
-  let b:_copilot_completion = b:_copilot_suggestion
+  let b:_copilot.suggestions = get(a:result, 'completions', [])
+  let b:_copilot.choice = 0
   call s:UpdatePreview()
 endfunction
 
@@ -496,7 +572,7 @@ function! copilot#Schedule(...) abort
 endfunction
 
 function! copilot#OnInsertLeave() abort
-  unlet! b:_copilot_suggestion b:_copilot_completion
+  unlet! b:_copilot
   if exists('*popup_list')
     for popup in popup_list()
       if getwinvar(popup, 'copilot_pseudo_split')
@@ -550,7 +626,9 @@ endfunction
 function! copilot#Accept(...) abort
   let s = copilot#GetDisplayedSuggestion()
   if !empty(s.text)
-    unlet! b:_copilot_suggestion b:_copilot_completion
+    unlet! b:_copilot
+    call copilot#Request('notifyAccepted', {'uuid': s.uuid})
+    unlet! s:uuid
     call s:ClearPreview()
     let s:suggestion_text = s.text
     return repeat("\<Left>\<Del>", s.outdentSize) . repeat("\<Del>", s.deleteSize) .
@@ -727,7 +805,7 @@ endfunction
 function! s:commands.setup(opts) abort
   let network_status = s:NetworkStatusMessage()
   if !empty(network_status)
-      return 'echoerr ' . string('Copilot: ' . network_status)
+    return 'echoerr ' . string('Copilot: ' . network_status)
   endif
 
   let browser = copilot#Browser()
@@ -887,25 +965,29 @@ endfunction
 function! copilot#Command(line1, line2, range, bang, mods, arg) abort
   let cmd = matchstr(a:arg, '^\%(\\.\|\S\)\+')
   let arg = matchstr(a:arg, '\s\zs\S.*')
-  if empty(cmd)
-    if empty(s:OAuthToken()) || !s:TermsAccepted(1)
+  try
+    if empty(cmd)
+      if empty(s:OAuthToken()) || !s:TermsAccepted(1)
+        let cmd = 'setup'
+      else
+        let cmd = 'status'
+      endif
+    elseif cmd ==# 'auth'
       let cmd = 'setup'
-    else
-      let cmd = 'status'
+    elseif cmd ==# 'open'
+      let cmd = 'split'
     endif
-  elseif cmd ==# 'auth'
-    let cmd = 'setup'
-  elseif cmd ==# 'open'
-    let cmd = 'split'
-  endif
-  if !has_key(s:commands, tr(cmd, '-', '_'))
-    return 'echoerr ' . string('Copilot: unknown command ' . string(cmd))
-  endif
-  let opts = {'line1': a:line1, 'line2': a:line2, 'range': a:range, 'bang': a:bang, 'mods': a:mods, 'arg': arg}
-  let retval = s:commands[tr(cmd, '-', '_')](opts)
-  if type(retval) == v:t_string
-    return retval
-  else
-    return ''
-  endif
+    if !has_key(s:commands, tr(cmd, '-', '_'))
+      return 'echoerr ' . string('Copilot: unknown command ' . string(cmd))
+    endif
+    let opts = {'line1': a:line1, 'line2': a:line2, 'range': a:range, 'bang': a:bang, 'mods': a:mods, 'arg': arg}
+    let retval = s:commands[tr(cmd, '-', '_')](opts)
+    if type(retval) == v:t_string
+      return retval
+    else
+      return ''
+    endif
+  catch /^Copilot:/
+    return 'echoerr ' . string(v:exception)
+  endtry
 endfunction
