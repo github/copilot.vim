@@ -449,7 +449,21 @@ function! s:PopupPreview(lines, outdent, delete, ...) abort
   let col = col('.') - a:outdent - 1
   let typed = strpart(getline('.'), 0, col)
   let text = [typed . a:lines[0]] + a:lines[1:-1]
+  if exists('b:_copilot.cycling_callbacks')
+    let annot = ' (1/…)'
+  elseif exists('b:_copilot.cycling')
+    let annot = ' (' . (b:_copilot.choice + 1) . '/' . len(b:_copilot.suggestions) . ')'
+  else
+    let annot = ''
+  endif
+  let text[-1] .= annot
   call popup_settext(winid, text)
+  if !empty(annot) && has('textprop')
+    call prop_add(len(text), len(text[-1]) - len(annot) + 2, {
+          \ 'length': len(annot) - 1,
+          \ 'bufnr': buf,
+          \ 'type': 'CopilotAnnotation'})
+  endif
   call setbufvar(buf, '&tabstop', &tabstop)
   if getbufvar(buf, '&filetype') !=# 'copilot.' . &filetype
     silent! call setbufvar(buf, '&filetype', 'copilot.' . &filetype)
