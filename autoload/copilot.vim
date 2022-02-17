@@ -392,67 +392,9 @@ function! s:WindowPreview(lines, outdent, delete, ...) abort
     let buf = s:dest
     let winid = bufwinid(buf)
     if winid < 0
-      let winid = s:FindPopup(buf)
-    endif
-    if win_gettype(winid) ==# 'popup'
-      if empty(a:lines)
-        call popup_settext(winid, '')
-        call popup_hide(winid)
-        call popup_hide(s:FindPseudoSplit(win_getid()))
+      if s:PopupPreview(a:lines, a:outdent, a:delete, a:000)
         return
       endif
-      if !has('patch-8.2.3627')
-        " screenpos() returns weird value after setbufvar(), so define l:leftbarwidth here
-        let leftbarwidth = screenpos(0, line('.'), winsaveview().leftcol + 1).col - win_screenpos(0)[1]
-      endif
-      let col = col('.') - a:outdent - 1
-      let typed = strpart(getline('.'), 0, col)
-      let text = [typed . a:lines[0]] + a:lines[1:-1]
-      call popup_settext(winid, text)
-      call setbufvar(buf, '&tabstop', &tabstop)
-      if getbufvar(buf, '&filetype') !=# 'copilot.' . &filetype
-        silent! call setbufvar(buf, '&filetype', 'copilot.' . &filetype)
-      endif
-      let wininfo = getwininfo(win_getid())[0]
-      if !has('patch-8.2.3627')
-        let wininfo.textoff = leftbarwidth
-      endif
-      call popup_setoptions(winid, {
-            \ 'line': 'cursor',
-            \ 'col': wininfo.wincol,
-            \ 'pos': 'topleft',
-            \ 'maxheight': wininfo.height - winline() + 1,
-            \ 'maxwidth': wininfo.width - wininfo.textoff,
-            \ 'minwidth': wininfo.width - wininfo.textoff,
-            \ 'padding': [0, 0, 0, wininfo.textoff],
-            \ 'mask': [[0, wininfo.textoff + strdisplaywidth(typed), 1, 1]]})
-      call popup_show(winid)
-      let popup_pos = popup_getpos(winid)
-      let remain_height = wininfo.winrow + wininfo.height - (popup_pos.line + popup_pos.height)
-      if !get(g:, 'copilot_enable_pseudo_split', 1) || remain_height <= 0 || line('.') == line('$') || popup_pos.height <= 1
-        call popup_hide(s:FindPseudoSplit(win_getid()))
-      else
-        let pseudo_split = s:OpenPseudoSplit(win_getid())
-        call popup_setoptions(pseudo_split, {
-              \ 'line': popup_pos.line + popup_pos.height,
-              \ 'col': wininfo.wincol,
-              \ 'pos': 'topleft',
-              \ 'maxheight': remain_height,
-              \ 'maxwidth': wininfo.width,
-              \ 'minwidth': wininfo.width,
-              \ 'firstline': line('.') + 1})
-        let line = line('.')
-        for _ in range(popup_getpos(pseudo_split).height)
-          let line += 1
-          if foldclosed(line) < 0
-            continue
-          endif
-          call win_execute(pseudo_split, printf('%d,%dfold', foldclosed(line), foldclosedend(line)))
-          let line = foldclosedend(line)
-        endfor
-        call popup_show(pseudo_split)
-      endif
-      return
     endif
     call setbufvar(buf, '&modifiable', 1)
     let old_lines = getbufline(buf, 1, '$')
@@ -486,6 +428,72 @@ function! s:WindowPreview(lines, outdent, delete, ...) abort
   catch
     call copilot#logger#Exception()
   endtry
+endfunction
+
+function! s:PopupPreview(lines, outdent, delete, ...) abort
+  let buf = s:dest
+  let winid = s:FindPopup(buf)
+  if winid < 0
+    return 0
+  endif
+  if empty(a:lines)
+    call popup_settext(winid, '')
+    call popup_hide(winid)
+    call popup_hide(s:FindPseudoSplit(win_getid()))
+    return 1
+  endif
+  if !has('patch-8.2.3627')
+    " screenpos() returns weird value after setbufvar(), so define l:leftbarwidth here
+    let leftbarwidth = screenpos(0, line('.'), winsaveview().leftcol + 1).col - win_screenpos(0)[1]
+  endif
+  let col = col('.') - a:outdent - 1
+  let typed = strpart(getline('.'), 0, col)
+  let text = [typed . a:lines[0]] + a:lines[1:-1]
+  call popup_settext(winid, text)
+  call setbufvar(buf, '&tabstop', &tabstop)
+  if getbufvar(buf, '&filetype') !=# 'copilot.' . &filetype
+    silent! call setbufvar(buf, '&filetype', 'copilot.' . &filetype)
+  endif
+  let wininfo = getwininfo(win_getid())[0]
+  if !has('patch-8.2.3627')
+    let wininfo.textoff = leftbarwidth
+  endif
+  call popup_setoptions(winid, {
+        \ 'line': 'cursor',
+        \ 'col': wininfo.wincol,
+        \ 'pos': 'topleft',
+        \ 'maxheight': wininfo.height - winline() + 1,
+        \ 'maxwidth': wininfo.width - wininfo.textoff,
+        \ 'minwidth': wininfo.width - wininfo.textoff,
+        \ 'padding': [0, 0, 0, wininfo.textoff],
+        \ 'mask': [[0, wininfo.textoff + strdisplaywidth(typed), 1, 1]]})
+  call popup_show(winid)
+  let popup_pos = popup_getpos(winid)
+  let remain_height = wininfo.winrow + wininfo.height - (popup_pos.line + popup_pos.height)
+  if !get(g:, 'copilot_enable_pseudo_split', 1) || remain_height <= 0 || line('.') == line('$') || popup_pos.height <= 1
+    call popup_hide(s:FindPseudoSplit(win_getid()))
+  else
+    let pseudo_split = s:OpenPseudoSplit(win_getid())
+    call popup_setoptions(pseudo_split, {
+          \ 'line': popup_pos.line + popup_pos.height,
+          \ 'col': wininfo.wincol,
+          \ 'pos': 'topleft',
+          \ 'maxheight': remain_height,
+          \ 'maxwidth': wininfo.width,
+          \ 'minwidth': wininfo.width,
+          \ 'firstline': line('.') + 1})
+    let line = line('.')
+    for _ in range(popup_getpos(pseudo_split).height)
+      let line += 1
+      if foldclosed(line) < 0
+        continue
+      endif
+      call win_execute(pseudo_split, printf('%d,%dfold', foldclosed(line), foldclosedend(line)))
+      let line = foldclosedend(line)
+    endfor
+    call popup_show(pseudo_split)
+  endif
+  return 1
 endfunction
 
 function! s:ClearPreview() abort
