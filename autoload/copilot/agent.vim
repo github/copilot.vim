@@ -5,11 +5,13 @@ let g:autoloaded_copilot_agent = 1
 
 scriptencoding utf-8
 
-let s:plugin_version = '1.1.0'
+let s:plugin_version = '1.2.0'
 
 let s:error_exit = -1
 
 let s:root = expand('<sfile>:h:h:h')
+
+let s:instances = {}
 
 let s:jobstop = function(exists('*jobstop') ? 'jobstop' : 'job_stop')
 function! s:Kill(agent, ...) abort
@@ -66,6 +68,10 @@ function! s:RequestAwait() dict abort
   throw 'copilot#agent(' . self.error.code . '): ' . self.error.message
 endfunction
 
+function s:RequestAgent() dict abort
+  return get(s:instances, self.agent_pid, v:null)
+endfunction
+
 if !exists('s:id')
   let s:id = 0
 endif
@@ -74,8 +80,11 @@ function! s:AgentRequest(method, params, ...) dict abort
   let request = {'method': a:method, 'params': a:params, 'id': s:id}
   call s:Send(self, request)
   call extend(request, {
+        \ 'agent_pid': self.pid,
+        \ 'Agent': function('s:RequestAgent'),
         \ 'Wait': function('s:RequestWait'),
         \ 'Await': function('s:RequestAwait'),
+        \ 'Cancel': function('s:RequestCancel'),
         \ 'resolve': [],
         \ 'reject': [],
         \ 'status': 'running'})
@@ -116,6 +125,27 @@ function! s:AgentCancel(request) dict abort
   endif
 endfunction
 
+function! s:RequestCancel() dict abort
+  let agent = self.Agent()
+  if !empty(agent)
+    call agent.Cancel(self)
+  elseif get(self, 'status', '') ==# 'running'
+    let self.status = 'canceled'
+  endif
+endfunction
+
+function! s:DispatchMessage(agent, handler, id, params, ...) abort
+  try
+    let response = {'result': call(a:handler, [a:params])}
+  catch
+    call copilot#logger#Exception()
+    let response = {'error': {'code': -32000, 'message': v:exception}}
+  endtry
+  if !empty(a:id)
+    call s:Send(a:agent, extend({'id': a:id}, response))
+  endif
+endfunction
+
 function! s:OnMessage(agent, body, ...) abort
   call copilot#logger#Trace({ -> '<-- ' . a:body})
   try
@@ -128,8 +158,20 @@ function! s:OnMessage(agent, body, ...) abort
   endif
 
   let id = get(response, 'id', v:null)
-  if has_key(response, 'method') && !empty(id)
-    return s:Send(a:agent, {"id": id, "code": -32700, "message": "Method not found: " . method})
+  if has_key(response, 'method')
+    let params = get(response, 'params', v:null)
+    if empty(id)
+      if has_key(a:agent.notifications, response.method)
+        call timer_start(0, { _ -> a:agent.notifications[response.method](params) })
+      elseif response.method ==# 'LogMessage'
+        call copilot#logger#Raw(get(params, 'level', 3), get(params, 'message', ''))
+      endif
+    elseif has_key(a:agent.methods, response.method)
+      call timer_start(0, function('s:DispatchMessage', [a:agent, a:agent.methods[response.method], id, params]))
+    else
+      return s:Send(a:agent, {"id": id, "code": -32700, "message": "Method not found: " . method})
+    endif
+    return
   endif
   if !has_key(a:agent.requests, id)
     return
@@ -167,7 +209,7 @@ function! s:OnOut(agent, state, data) abort
         let a:state.headers = {}
         let body = strpart(a:state.buffer, 0, content_length)
         let a:state.buffer = strpart(a:state.buffer, content_length)
-        call timer_start(0, { t -> s:OnMessage(a:agent, body) })
+        call timer_start(0, function('s:OnMessage', [a:agent, body]))
       else
         return
       endif
@@ -211,14 +253,8 @@ function! s:OnExit(agent, code) abort
       let request.waiting[timer_start(0, function('s:Callback', [request, 'error', Cb]))] = 1
     endfor
   endfor
+  call timer_start(0, { _ -> get(s:instances, a:agent.pid) is# a:agent ? remove(s:instances, a:agent.pid) : {} })
   call copilot#logger#Info('agent exited with status ' . a:code)
-endfunction
-
-function! copilot#agent#Close() abort
-  if exists('s:instance')
-    let instance = remove(s:, 'instance')
-    call instance.Close()
-  endif
 endfunction
 
 unlet! s:is_arm_macos
@@ -288,7 +324,7 @@ function! copilot#agent#EditorInfo() abort
 endfunction
 
 function! s:GetCapabilitiesResult(result, agent) abort
-  let a:agent.capabilities = get(a:result, 'capabilities', '')
+  let a:agent.capabilities = get(a:result, 'capabilities', {})
   call a:agent.Request('setEditorInfo', copilot#agent#EditorInfo())
 endfunction
 
@@ -301,18 +337,35 @@ function! s:GetCapabilitiesError(error, agent) abort
   endif
 endfunction
 
-function! s:New() abort
-  let [command, command_error] = s:Command()
-  if len(command_error)
-    return [v:null, command_error]
+function! s:AgentStartupError() dict abort
+  while has_key(self, 'job') && !has_key(self, 'startup_error') && !has_key(self, 'capabilities')
+    sleep 10m
+  endwhile
+  if has_key(self, 'capabilities')
+    return ''
+  else
+    return get(self, 'startup_error', 'Something unexpected went wrong spawning the agent')
   endif
+endfunction
+
+function! copilot#agent#New(...) abort
+  let opts = a:0 ? a:1 : {}
   let instance = {'requests': {},
+        \ 'methods': get(opts, 'methods', {}),
+        \ 'notifications': get(opts, 'notifications', {}),
         \ 'Close': function('s:AgentClose'),
         \ 'Notify': function('s:AgentNotify'),
         \ 'Request': function('s:AgentRequest'),
         \ 'Call': function('s:AgentCall'),
         \ 'Cancel': function('s:AgentCancel'),
+        \ 'StartupError': function('s:AgentStartupError'),
         \ }
+  let [command, command_error] = s:Command()
+  if len(command_error)
+    let instance.pid = -1
+    let instance.startup_error = command_error
+    return instance
+  endif
   let state = {'headers': {}, 'mode': 'headers', 'buffer': ''}
   let instance.job = copilot#job#Stream(command,
         \ function('s:OnOut', [instance, state]),
@@ -320,83 +373,13 @@ function! s:New() abort
         \ function('s:OnExit', [instance]))
   let instance.pid = exists('*jobpid') ? jobpid(instance.job) : job_info(instance.job).process
   let request = instance.Request('initialize', {'capabilities': {}}, function('s:GetCapabilitiesResult'), function('s:GetCapabilitiesError'), instance)
-  return [instance, '']
-endfunction
-
-function! copilot#agent#Start() abort
-  if exists('s:instance.job')
-    return
-  endif
-  let [instance, error] = s:New()
-  if len(error)
-    let s:startup_error = error
-    unlet! s:instance
-  else
-    let s:instance = instance
-    unlet! s:startup_error
-  endif
-endfunction
-
-function! copilot#agent#New() abort
-  let [agent, error] = s:New()
-  if empty(error)
-    return agent
-  endif
-  throw 'Copilot: ' . error
-endfunction
-
-function! copilot#agent#StartupError() abort
-  if !exists('s:instance.job') && !exists('s:startup_error')
-    call copilot#agent#Start()
-  endif
-  if !exists('s:instance.job')
-    return get(s:, 'startup_error', 'Something unexpected went wrong spawning the agent')
-  endif
-  let instance = s:instance
-  while has_key(instance, 'job') && !has_key(instance, 'startup_error') && !has_key(instance, 'capabilities')
-    sleep 10m
-  endwhile
-  if has_key(instance, 'capabilities')
-    return ''
-  else
-    return get(instance, 'startup_error', 'Something unexpected went wrong running the agent')
-  endif
-endfunction
-
-function! copilot#agent#Instance() abort
-  let err = copilot#agent#StartupError()
-  if empty(err)
-    return s:instance
-  endif
-  throw 'Copilot: ' . err
-endfunction
-
-function! copilot#agent#Restart() abort
-  call copilot#agent#Close()
-  return copilot#agent#Start()
-endfunction
-
-function! copilot#agent#Capabilities()
-  let instance = copilot#agent#Instance()
-  return instance.capabilities
-endfunction
-
-function! copilot#agent#Notify(method, params) abort
-  let instance = copilot#agent#Instance()
-  return instance.Notify(a:method, a:params)
-endfunction
-
-function! copilot#agent#Request(method, params, ...) abort
-  let instance = copilot#agent#Instance()
-  return call(instance.Request, [a:method, a:params] + a:000)
+  let s:instances[instance.pid] = instance
+  return instance
 endfunction
 
 function! copilot#agent#Cancel(request) abort
-  if exists('s:instance')
-    call s:instance.Cancel(a:request)
-  endif
-  if get(a:request, 'status', '') ==# 'running'
-    let a:request.status = 'canceled'
+  if type(a:request) == type({}) && has_key(a:request, 'Cancel')
+    call a:request.Cancel()
   endif
 endfunction
 
@@ -421,17 +404,4 @@ function! copilot#agent#Error(request, callback) abort
   elseif has_key(a:request, 'error')
     let a:request.waiting[timer_start(0, function('s:Callback', [a:request, 'error', a:callback]))] = 1
   endif
-endfunction
-
-function! copilot#agent#Wait(request) abort
-  return a:request.Wait()
-endfunction
-
-function! copilot#agent#Await(request) abort
-  return a:request.Await()
-endfunction
-
-function! copilot#agent#Call(method, params, ...) abort
-  let instance = copilot#agent#Instance()
-  return call(instance.Call, [a:method, a:params] + a:000)
 endfunction

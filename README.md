@@ -42,7 +42,3 @@ Service](https://docs.github.com/en/github/site-policy/github-terms-of-service#j
 
 Suggestions are displayed inline and can be accepted by pressing the tab key.
 See `:help copilot` for more information.
-
-## Limitations
-
-Copilot.vim does not yet support opening the GitHub Copilot panel on Ctrl+Enter.
