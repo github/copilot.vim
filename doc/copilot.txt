@@ -30,6 +30,13 @@ COMMANDS                                        *:Copilot*
 :Copilot status         Check if GitHub Copilot is operational for the current
                         buffer and report on any issues.
 
+                                                *:Copilot_panel*
+:Copilot panel          Open a window with up to 10 completions for the
+                        current buffer.  Use <CR> to accept a solution.  Maps
+                        are also provided for [[ and ]] to jump from solution
+                        to solution.  This is the default command if :Copilot
+                        is called without an argument.
+
 OPTIONS
 
                                                 *g:copilot_filetypes*

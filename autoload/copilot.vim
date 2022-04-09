@@ -33,7 +33,7 @@ function! s:JsonBody(response) abort
 endfunction
 
 function! copilot#HttpRequest(url, options, ...) abort
-  return call('copilot#agent#Call', ['httpRequest', extend({'url': a:url, 'timeout': 30000}, a:options)] + a:000)
+  return call('copilot#Call', ['httpRequest', extend({'url': a:url, 'timeout': 30000}, a:options)] + a:000)
 endfunction
 
 unlet! s:github
@@ -93,7 +93,44 @@ if !exists('s:github') && $CODESPACES ==# 'true' && len($GITHUB_TOKEN)
 endif
 
 function! copilot#Init(...) abort
-  call timer_start(0, { _ -> copilot#agent#Start() })
+  call timer_start(0, { _ -> s:Start() })
+endfunction
+
+function! s:Start() abort
+  if exists('s:agent.job')
+    return
+  endif
+  let s:agent = copilot#agent#New({'notifications': {
+        \ 'PanelSolution': function('copilot#panel#Solution'),
+        \ 'PanelSolutionsDone': function('copilot#panel#SolutionsDone'),
+        \ }})
+endfunction
+
+function! s:Stop() abort
+  if exists('s:agent')
+    let agent = remove(s:, 'agent')
+    call agent.Close()
+  endif
+endfunction
+
+function! copilot#Agent() abort
+  call s:Start()
+  return s:agent
+endfunction
+
+function! copilot#Request(method, params, ...) abort
+  let agent = copilot#Agent()
+  return call(agent.Request, [a:method, a:params] + a:000)
+endfunction
+
+function! copilot#Call(method, params, ...) abort
+  let agent = copilot#Agent()
+  return call(agent.Call, [a:method, a:params] + a:000)
+endfunction
+
+function! copilot#Notify(method, params, ...) abort
+  let agent = copilot#Agent()
+  return call(agent.Notify, [a:method, a:params] + a:000)
 endfunction
 
 let s:terms_version = '2021-10-14'
@@ -191,15 +228,7 @@ function! copilot#Enabled() abort
   return get(g:, 'copilot_enabled', 1)
         \ && s:TermsAccepted(0)
         \ && empty(s:BufferDisabled())
-        \ && empty(copilot#agent#StartupError())
-endfunction
-
-function! copilot#Request(method, params, ...) abort
-  return call('copilot#agent#Request', [a:method, a:params] + a:000)
-endfunction
-
-function! copilot#Call(method, params, ...) abort
-  return call('copilot#agent#Call', [a:method, a:params] + a:000)
+        \ && empty(copilot#Agent().StartupError())
 endfunction
 
 function! copilot#Complete(...) abort
@@ -209,10 +238,10 @@ function! copilot#Complete(...) abort
   if exists('g:_copilot_timer')
     call timer_stop(remove(g:, '_copilot_timer'))
   endif
-  let doc = copilot#doc#Get()
-  if !exists('b:_copilot.doc') || b:_copilot.doc !=# doc
-    let b:_copilot = {'doc': doc, 'first':
-          \ copilot#agent#Request('getCompletions', {'doc': doc, 'options': {}})}
+  let params = copilot#doc#Params()
+  if !exists('b:_copilot.params') || b:_copilot.params !=# params
+    let b:_copilot = {'params': params, 'first':
+          \ copilot#Request('getCompletions', params)}
     let g:_copilot_last = b:_copilot
   endif
   let completion = b:_copilot.first
@@ -295,8 +324,8 @@ function! s:GetSuggestionsCycling(callback) abort
     call a:callback(b:_copilot)
   elseif exists('b:_copilot.suggestions')
     let b:_copilot.cycling_callbacks = [a:callback]
-    let b:_copilot.cycling = copilot#agent#Request('getCompletionsCycling',
-          \ {'doc': b:_copilot.first.params.doc, 'options': {}},
+    let b:_copilot.cycling = copilot#Request('getCompletionsCycling',
+          \ b:_copilot.first.params,
           \ function('s:GetSuggestionsCyclingCallback', [b:_copilot]),
           \ function('s:GetSuggestionsCyclingCallback', [b:_copilot]),
           \ )
@@ -607,7 +636,7 @@ endfunction
 
 function! copilot#OnInsertEnter() abort
   let s:is_mapped = copilot#IsMapped()
-  let s:dest = bufnr('copilot://')
+  let s:dest = bufnr('^copilot://$')
   if s:dest < 0 && !s:has_ghost_text
     if has('nvim')
       let s:dest = 0
@@ -724,6 +753,10 @@ function! s:DevicePoll(result, login_data, timer) abort
         \ function('s:DeviceResponse', [a:result, a:login_data]))
 endfunction
 
+function! s:BrowserCallback(into, code) abort
+  let a:into.code = a:code
+endfunction
+
 function! copilot#Browser() abort
   if type(get(g:, 'copilot_browser')) == v:t_list
     return copy(g:copilot_browser)
@@ -743,7 +776,7 @@ endfunction
 let s:commands = {}
 
 function s:NetworkStatusMessage() abort
-  let err = copilot#agent#StartupError()
+  let err = copilot#Agent().StartupError()
   if !empty(err)
     return err
   endif
@@ -785,7 +818,13 @@ function! s:EnabledStatusMessage() abort
   endif
 endfunction
 
-function! s:commands.status(opts) abort
+function! s:VerifySetup() abort
+  let error = copilot#Agent().StartupError()
+  if !empty(error)
+    echo 'Copilot: ' . error
+    return
+  endif
+
   if empty(s:OAuthToken())
     echo 'Copilot: Not authenticated. Invoke :Copilot setup'
     return
@@ -793,6 +832,13 @@ function! s:commands.status(opts) abort
 
   if !s:TermsAccepted(1)
     echo 'Copilot: Telemetry terms not accepted. Invoke :Copilot setup'
+    return
+  endif
+  return 1
+endfunction
+
+function! s:commands.status(opts) abort
+  if !s:VerifySetup()
     return
   endif
 
@@ -847,14 +893,21 @@ function! s:commands.setup(opts) abort
         let mouse = &mouse
         set mouse=
       endif
-      if len(browser)
+      if get(a:opts, 'bang')
+        echo "In your browser, visit " . data.verification_uri
+      elseif len(browser)
         echo "Press ENTER to open GitHub in your browser"
         let c = getchar()
         while c isnot# 13 && c isnot# 10 && c isnot# 0
           let c = getchar()
         endwhile
-        let exit_status = copilot#job#Stream(browser + [data.verification_uri], v:null, v:null)
-        if exit_status
+        let status = {}
+        call copilot#job#Stream(browser + [data.verification_uri], v:null, v:null, function('s:BrowserCallback', [status]))
+        let time = reltime()
+        while empty(status) && reltimefloat(reltime(time)) < 5
+          sleep 10m
+        endwhile
+        if get(status, 'code', browser[0] !=# 'xdg-open') != 0
           echo "Failed to open browser.  Visit " . data.verification_uri
         else
           echo "Opened " . data.verification_uri
@@ -942,8 +995,8 @@ function! s:commands.log(opts) abort
 endfunction
 
 function! s:commands.restart(opts) abort
-  call copilot#agent#Close()
-  let err = copilot#agent#StartupError()
+  call s:Stop()
+  let err = copilot#Agent().StartupError()
   if !empty(err)
     return 'echoerr ' . string('Copilot: ' . err)
   endif
@@ -956,6 +1009,12 @@ endfunction
 
 function! s:commands.enable(opts) abort
   let g:copilot_enabled = 1
+endfunction
+
+function! s:commands.panel(opts) abort
+  if s:VerifySetup()
+    return copilot#panel#Open(a:opts)
+  endif
 endfunction
 
 function! s:commands.split(opts) abort
@@ -992,7 +1051,7 @@ function! copilot#Command(line1, line2, range, bang, mods, arg) abort
       if empty(s:OAuthToken()) || !s:TermsAccepted(1)
         let cmd = 'setup'
       else
-        let cmd = 'status'
+        let cmd = 'panel'
       endif
     elseif cmd ==# 'auth'
       let cmd = 'setup'

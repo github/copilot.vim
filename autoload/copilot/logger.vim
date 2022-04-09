@@ -15,8 +15,11 @@ function! copilot#logger#File() abort
   return s:log_file
 endfunction
 
-function! s:Write(lines) abort
-  let lines = copy(a:lines)
+function! copilot#logger#Raw(level, message) abort
+  if $COPILOT_AGENT_VERBOSE !~# '^\%(1\|true\)$' && a:level < 1
+    return
+  endif
+  let lines = type(a:message) == v:t_list ? copy(a:message) : split(a:message, "\n", 1)
   try
     if !filewritable(s:log_file)
       return
@@ -28,25 +31,23 @@ function! s:Write(lines) abort
 endfunction
 
 function! copilot#logger#Trace(...) abort
-  if $COPILOT_AGENT_VERBOSE =~# '^\%(1\|true\)$'
-    call s:Write(a:000)
-  endif
+  call copilot#logger#Raw(-1, a:000)
 endfunction
 
 function! copilot#logger#Debug(...) abort
-  call s:Write(a:000)
+  call copilot#logger#Raw(0, a:000)
 endfunction
 
 function! copilot#logger#Info(...) abort
-  call s:Write(a:000)
+  call copilot#logger#Raw(1, a:000)
 endfunction
 
 function! copilot#logger#Warn(...) abort
-  call s:Write(a:000)
+  call copilot#logger#Raw(2, a:000)
 endfunction
 
 function! copilot#logger#Error(...) abort
-  call s:Write(a:000)
+  call copilot#logger#Raw(3, a:000)
 endfunction
 
 function! copilot#logger#Exception() abort

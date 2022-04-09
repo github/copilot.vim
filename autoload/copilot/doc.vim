@@ -10,6 +10,7 @@ function copilot#doc#UTF16Width(str) abort
 endfunction
 
 let s:language_normalization_map = {
+      \ "text":            "plaintext",
       \ "javascriptreact": "javascript",
       \ "jsx":             "javascript",
       \ "typescriptreact": "typescript",
@@ -17,7 +18,7 @@ let s:language_normalization_map = {
 
 function copilot#doc#LanguageForFileType(filetype) abort
   let filetype = substitute(a:filetype, '\..*', '', '')
-  return get(s:language_normalization_map, filetype, filetype)
+  return get(s:language_normalization_map, empty(filetype) ? "text" : filetype, filetype)
 endfunction
 
 function! copilot#doc#RelativePath() abort
@@ -58,4 +59,9 @@ function! copilot#doc#Get() abort
   endif
   let doc.source = join(lines, "\n")
   return doc
+endfunction
+
+function! copilot#doc#Params(...) abort
+  let extra = a:0 ? a:1 : {}
+  return extend({'doc': extend(copilot#doc#Get(), get(extra, 'doc', {}))}, extra, 'keep')
 endfunction
