@@ -325,7 +325,7 @@ function! s:GetSuggestionsCycling(callback) abort
   elseif exists('b:_copilot.suggestions')
     let b:_copilot.cycling_callbacks = [a:callback]
     let b:_copilot.cycling = copilot#Request('getCompletionsCycling',
-          \ params,
+          \ b:_copilot.first.params,
           \ function('s:GetSuggestionsCyclingCallback', [b:_copilot]),
           \ function('s:GetSuggestionsCyclingCallback', [b:_copilot]),
           \ )
@@ -587,6 +587,10 @@ function! s:DevicePoll(result, login_data, timer) abort
         \ function('s:DeviceResponse', [a:result, a:login_data]))
 endfunction
 
+function! s:BrowserCallback(into, code) abort
+  let a:into.code = a:code
+endfunction
+
 function! copilot#Browser() abort
   if type(get(g:, 'copilot_browser')) == v:t_list
     return copy(g:copilot_browser)
@@ -731,8 +735,13 @@ function! s:commands.setup(opts) abort
         while c isnot# 13 && c isnot# 10 && c isnot# 0
           let c = getchar()
         endwhile
-        let exit_status = copilot#job#Stream(browser + [data.verification_uri], v:null, v:null)
-        if exit_status
+        let status = {}
+        call copilot#job#Stream(browser + [data.verification_uri], v:null, v:null, function('s:BrowserCallback', [status]))
+        let time = reltime()
+        while empty(status) && reltimefloat(reltime(time)) < 5
+          sleep 10m
+        endwhile
+        if get(status, 'code', browser[0] !=# 'xdg-open') != 0
           echo "Failed to open browser.  Visit " . data.verification_uri
         else
           echo "Opened " . data.verification_uri
