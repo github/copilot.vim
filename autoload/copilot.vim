@@ -171,7 +171,7 @@ function! copilot#NvimNs() abort
   return nvim_create_namespace('github-copilot')
 endfunction
 
-function! copilot#Clear() abort
+function! copilot#CancelOngoingRequest() abort
   if exists('g:_copilot_timer')
     call timer_stop(remove(g:, '_copilot_timer'))
   endif
@@ -181,15 +181,14 @@ function! copilot#Clear() abort
   if exists('b:_copilot')
     call copilot#agent#Cancel(get(b:_copilot, 'first', {}))
     call copilot#agent#Cancel(get(b:_copilot, 'cycling', {}))
-    unlet b:_copilot
   endif
-  call s:UpdatePreview()
   return ''
 endfunction
 
 function! copilot#Dismiss() abort
   unlet! b:_copilot
-  call copilot#Clear()
+  call copilot#CancelOngoingRequest()
+  call s:UpdatePreview()
   return ''
 endfunction
 
@@ -257,7 +256,7 @@ endfunction
 
 function! s:SuggestionTextWithAdjustments() abort
   try
-    if mode() !~# '^[iR]' || pumvisible() || !s:dest || !exists('b:_copilot.suggestions')
+    if mode() !~# '^[iR]' || !s:dest || !exists('b:_copilot.suggestions')
       return ['', 0, 0, '']
     endif
     let choice = get(b:_copilot.suggestions, b:_copilot.choice, {})
@@ -430,7 +429,7 @@ function! s:UpdatePreview() abort
     else
       let data.virt_text += annot
     endif
-    call nvim_buf_del_extmark(0, copilot#NvimNs(), 1)
+    let data.hl_mode = 'combine'
     call nvim_buf_set_extmark(0, copilot#NvimNs(), line('.')-1, col('.')-1, data)
     if uuid !=# get(s:, 'uuid', '')
       let s:uuid = uuid
@@ -470,7 +469,8 @@ endfunction
 let s:is_mapped = copilot#IsMapped()
 
 function! copilot#Schedule(...) abort
-  call copilot#Clear()
+  call s:UpdatePreview()
+  call copilot#CancelOngoingRequest()
   if !s:is_mapped || !s:dest || !copilot#Enabled()
     return
   endif
@@ -479,8 +479,7 @@ function! copilot#Schedule(...) abort
 endfunction
 
 function! copilot#OnInsertLeave() abort
-  unlet! b:_copilot
-  return copilot#Clear()
+  return copilot#Dismiss()
 endfunction
 
 function! copilot#OnInsertEnter() abort
@@ -493,7 +492,7 @@ function! copilot#OnInsertEnter() abort
 endfunction
 
 function! copilot#OnCompleteChanged() abort
-  return copilot#Clear()
+  return copilot#Schedule()
 endfunction
 
 function! copilot#OnCursorMovedI() abort
