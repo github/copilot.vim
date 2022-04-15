@@ -519,7 +519,7 @@ function! copilot#Accept(...) abort
     return repeat("\<Left>\<Del>", s.outdentSize) . repeat("\<Del>", s.deleteSize) .
             \ "\<C-R>\<C-O>=copilot#TextQueuedForInsertion()\<CR>"
   endif
-  let default = get(g:, 'copilot_tab_fallback', pumvisible() ? "\<C-N>" : "\t")
+  let default = get(g:, 'copilot_tab_fallback', pumvisible() ? "\<C-N>" : "\<Tab>")
   if !a:0
     return default
   elseif type(a:1) == v:t_string
