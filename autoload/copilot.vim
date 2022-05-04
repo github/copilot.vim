@@ -255,9 +255,13 @@ function! copilot#Complete(...) abort
   endif
 endfunction
 
+function! s:HideDuringCompletion() abort
+  return get(g:, 'copilot_hide_during_completion', 1)
+endfunction
+
 function! s:SuggestionTextWithAdjustments() abort
   try
-    if mode() !~# '^[iR]' || pumvisible() || !s:dest || !exists('b:_copilot.suggestions')
+    if mode() !~# '^[iR]' || (s:HideDuringCompletion() && pumvisible()) || !s:dest || !exists('b:_copilot.suggestions')
       return ['', 0, 0, '']
     endif
     let choice = get(b:_copilot.suggestions, b:_copilot.choice, {})
@@ -430,6 +434,7 @@ function! s:UpdatePreview() abort
     else
       let data.virt_text += annot
     endif
+    let data.hl_mode = 'combine'
     call nvim_buf_del_extmark(0, copilot#NvimNs(), 1)
     call nvim_buf_set_extmark(0, copilot#NvimNs(), line('.')-1, col('.')-1, data)
     if uuid !=# get(s:, 'uuid', '')
@@ -493,7 +498,9 @@ function! copilot#OnInsertEnter() abort
 endfunction
 
 function! copilot#OnCompleteChanged() abort
-  return copilot#Clear()
+  if s:HideDuringCompletion()
+    return copilot#Clear()
+  endif
 endfunction
 
 function! copilot#OnCursorMovedI() abort
@@ -686,6 +693,11 @@ function! s:commands.status(opts) abort
   if !empty(network_status)
       echo 'Copilot: ' . network_status
       return
+  endif
+
+  if has_key(copilot#Agent(), 'upgrade_message')
+    echo 'Copilot: ' . copilot#Agent().upgrade_message
+    return
   endif
 
   echo 'Copilot: Enabled and online'
