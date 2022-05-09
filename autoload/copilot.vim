@@ -92,6 +92,15 @@ if !exists('s:github') && $CODESPACES ==# 'true' && len($GITHUB_TOKEN)
   let s:github = {'oauth_token': $GITHUB_TOKEN, 'user': empty($GITHUB_USER) ? 'codespace-user': $GITHUB_USER}
 endif
 
+function! s:StatusNotification(params, ...) abort
+  let status = get(a:params, 'status', '')
+  if status ==? 'error'
+    let s:agent_error = a:params.message
+  else
+    unlet! s:agent_error
+  endif
+endfunction
+
 function! copilot#Init(...) abort
   call timer_start(0, { _ -> s:Start() })
 endfunction
@@ -101,6 +110,7 @@ function! s:Start() abort
     return
   endif
   let s:agent = copilot#agent#New({'notifications': {
+        \ 'statusNotification': function('s:StatusNotification'),
         \ 'PanelSolution': function('copilot#panel#Solution'),
         \ 'PanelSolutionsDone': function('copilot#panel#SolutionsDone'),
         \ }})
@@ -622,8 +632,12 @@ function s:NetworkStatusMessage() abort
     return err
   endif
   try
+    let info = copilot#agent#EditorInfo()
     let response = copilot#HttpRequest('https://copilot-proxy.githubusercontent.com/_ping',
-          \ {'timeout': 5000, 'headers': {'Agent-Version': 'agent/' . copilot#agent#Version()}})
+          \ {'timeout': 5000, 'headers': {
+            \ 'Editor-Version': info.editorInfo.name . '/' . info.editorInfo.version,
+            \ 'Editor-Plugin-Version': info.editorPluginInfo.name . '/' . info.editorPluginInfo.version,
+            \ }})
     if response.status == 466
       return "Server error:\n" . substitute(response.body, "\n$", '', '')
     endif
@@ -695,8 +709,8 @@ function! s:commands.status(opts) abort
       return
   endif
 
-  if has_key(copilot#Agent(), 'upgrade_message')
-    echo 'Copilot: ' . copilot#Agent().upgrade_message
+  if exists('s:agent_error')
+    echo 'Copilot: ' . s:agent_error
     return
   endif
 

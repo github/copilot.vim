@@ -5,6 +5,8 @@ let g:autoloaded_copilot_prompt = 1
 
 scriptencoding utf-8
 
+let s:slash = exists('+shellslash') ? '\' : '/'
+
 function copilot#doc#UTF16Width(str) abort
   return strchars(substitute(a:str, "\\%#=2[^\u0001-\uffff]", "  ", 'g'))
 endfunction
@@ -21,7 +23,7 @@ function copilot#doc#LanguageForFileType(filetype) abort
   return get(s:language_normalization_map, empty(filetype) ? "text" : filetype, filetype)
 endfunction
 
-function! copilot#doc#RelativePath() abort
+function! s:RelativePath(absolute) abort
   if exists('b:copilot_relative_path')
     return b:copilot_relative_path
   elseif exists('b:copilot_root')
@@ -31,20 +33,37 @@ function! copilot#doc#RelativePath() abort
   else
     let root = getcwd()
   endif
-  let root .= '/'
-  let absolute = expand('%:p')
-  if strpart(tr(absolute, 'A-Z\', 'a-z/'), 0, len(root)) ==# tr(root, 'A-Z\', 'a-z/')
-    return strpart(absolute, len(root))
+  let root = tr(root, s:slash, '/') . '/'
+  if strpart(tr(a:absolute, 'A-Z', 'a-z'), 0, len(root)) ==# tr(root, 'A-Z', 'a-z')
+    return strpart(a:absolute, len(root))
   else
-    return expand('%:t')
+    return fnamemodify(a:absolute, ':t')
   endif
 endfunction
 
+function! s:UrlEncode(str) abort
+  return substitute(iconv(a:str, 'latin1', 'utf-8'),'[^A-Za-z0-9._~!$&''()*+,;=:@/-]','\="%".printf("%02X",char2nr(submatch(0)))','g')
+endfunction
+
 function! copilot#doc#Get() abort
+  let absolute = tr(@%, s:slash, '/')
+  if absolute !~# '^\a\+:\|^/\|^$' && &buftype =~# '^\%(nowrite\)\=$'
+    let absolute = substitute(tr(getcwd(), s:slash, '/'), '/\=$', '/', '') . absolute
+  endif
+  if has('win32') && absolute =~# '^\a://\@!'
+    let uri = 'file:///' . strpart(absolute, 0, 2) . s:UrlEncode(strpart(absolute, 2))
+  elseif absolute =~# '^/'
+    let uri = 'file://' . s:UrlEncode(absolute)
+  elseif absolute =~# '^\a[[:alnum:].+-]*:\|^$'
+    let uri = absolute
+  else
+    let uri = ''
+  endif
   let doc = {
         \ 'languageId': copilot#doc#LanguageForFileType(&filetype),
-        \ 'path': expand('%:p'),
-        \ 'relativePath': copilot#doc#RelativePath(),
+        \ 'path': absolute,
+        \ 'uri': uri,
+        \ 'relativePath': s:RelativePath(absolute),
         \ 'insertSpaces': &expandtab ? v:true : v:false,
         \ 'tabSize': shiftwidth(),
         \ 'indentSize': shiftwidth(),
