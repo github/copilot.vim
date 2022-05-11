@@ -25,7 +25,8 @@ Service](https://docs.github.com/en/github/site-policy/github-terms-of-service#j
 
 ## Getting started
 
-1.  Install [Node.js][] 12 or newer.
+1.  Install [Node.js][] 12 or newer. 
+(On apple silicon computers is required version 16 or newer.)
 
 2.  Install [Neovim][] 0.6 or newer.
 
