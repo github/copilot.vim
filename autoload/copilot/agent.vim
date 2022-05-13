@@ -5,11 +5,7 @@ let g:autoloaded_copilot_agent = 1
 
 scriptencoding utf-8
 
-let s:plugin_version = '1.2.3'
-
-function! copilot#agent#Version() abort
-  return s:plugin_version
-endfunction
+let s:plugin_version = '1.3.0'
 
 let s:error_exit = -1
 
@@ -169,10 +165,6 @@ function! s:OnMessage(agent, body, ...) abort
         call timer_start(0, { _ -> a:agent.notifications[response.method](params) })
       elseif response.method ==# 'LogMessage'
         call copilot#logger#Raw(get(params, 'level', 3), get(params, 'message', ''))
-        let upgrade_message = matchstr(get(params, 'message', ''), '\<Unhandled status from server:,466,\zs.*')
-        if len(upgrade_message)
-          let a:agent.upgrade_message = upgrade_message
-        endif
       endif
     elseif has_key(a:agent.methods, response.method)
       call timer_start(0, function('s:DispatchMessage', [a:agent, a:agent.methods[response.method], id, params]))
