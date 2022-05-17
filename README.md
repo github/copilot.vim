@@ -25,9 +25,10 @@ Service](https://docs.github.com/en/github/site-policy/github-terms-of-service#j
 
 ## Getting started
 
-1.  Install [Node.js][] 12 or newer.
+1.  Install [Neovim][].
 
-2.  Install [Neovim][] 0.6 or newer.
+2.  Install [Node.js][] version 16.  (Other versions should work too, except
+    Node 18 which isn't supported yet.)
 
 3.  Install `github/copilot.vim` using vim-plug, packer.nvim, or any other
     plugin manager.  Or to install directly:

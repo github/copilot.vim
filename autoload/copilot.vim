@@ -198,7 +198,6 @@ function! copilot#Clear() abort
 endfunction
 
 function! copilot#Dismiss() abort
-  unlet! b:_copilot
   call copilot#Clear()
   return ''
 endfunction
@@ -494,7 +493,6 @@ function! copilot#Schedule(...) abort
 endfunction
 
 function! copilot#OnInsertLeave() abort
-  unlet! b:_copilot
   return copilot#Clear()
 endfunction
 

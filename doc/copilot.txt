@@ -103,4 +103,16 @@ after/colors/<colorschemename>.vim in your 'runtimepath' (e.g.,
 >
         highlight CopilotSuggestion guifg=#555555 ctermfg=8
 <
+CONFIGURATION                                   *copilot-configuration*
+
+                                                *g:copilot_node_command*
+Tell Copilot what `node` binary to use with g:copilot_node_command.
+This is useful if the `node` in your PATH is an unsupported version.
+>
+        let g:copilot_node_command = "~/.nodenv/versions/16.15.0/bin/node"
+<
+Lua version:
+>
+        vim.g.copilot_node_command = "$NVM_DIR/versions/node/v16.15.0/bin/node"
+<
  vim:tw=78:et:ft=help:norl:
