@@ -5,7 +5,7 @@ let g:autoloaded_copilot_agent = 1
 
 scriptencoding utf-8
 
-let s:plugin_version = '1.3.1'
+let s:plugin_version = '1.3.2'
 
 let s:error_exit = -1
 
@@ -71,7 +71,7 @@ function! s:RequestAwait() dict abort
 endfunction
 
 function s:RequestAgent() dict abort
-  return get(s:instances, self.agent_pid, v:null)
+  return get(s:instances, self.agent_id, v:null)
 endfunction
 
 if !exists('s:id')
@@ -82,7 +82,7 @@ function! s:AgentRequest(method, params, ...) dict abort
   let request = {'method': a:method, 'params': a:params, 'id': s:id}
   call s:Send(self, request)
   call extend(request, {
-        \ 'agent_pid': self.pid,
+        \ 'agent_id': self.id,
         \ 'Agent': function('s:RequestAgent'),
         \ 'Wait': function('s:RequestWait'),
         \ 'Await': function('s:RequestAwait'),
@@ -173,7 +173,7 @@ function! s:OnMessage(agent, body, ...) abort
     elseif has_key(a:agent.methods, response.method)
       call timer_start(0, function('s:DispatchMessage', [a:agent, a:agent.methods[response.method], id, params]))
     else
-      return s:Send(a:agent, {"id": id, "code": -32700, "message": "Method not found: " . method})
+      return s:Send(a:agent, {"id": id, "error": {"code": -32700, "message": "Method not found: " . response.method}})
     endif
     return
   endif
@@ -257,7 +257,7 @@ function! s:OnExit(agent, code) abort
       let request.waiting[timer_start(0, function('s:Callback', [request, 'error', Cb]))] = 1
     endfor
   endfor
-  call timer_start(0, { _ -> get(s:instances, a:agent.pid) is# a:agent ? remove(s:instances, a:agent.pid) : {} })
+  call timer_start(0, { _ -> get(s:instances, a:agent.id) is# a:agent ? remove(s:instances, a:agent.id) : {} })
   call copilot#logger#Info('agent exited with status ' . a:code)
 endfunction
 
@@ -372,7 +372,7 @@ function! copilot#agent#New(...) abort
         \ }
   let [command, command_error] = s:Command()
   if len(command_error)
-    let instance.pid = -1
+    let instance.id = -1
     let instance.startup_error = command_error
     return instance
   endif
@@ -381,9 +381,9 @@ function! copilot#agent#New(...) abort
         \ function('s:OnOut', [instance, state]),
         \ function('s:OnErr', [instance]),
         \ function('s:OnExit', [instance]))
-  let instance.pid = exists('*jobpid') ? jobpid(instance.job) : job_info(instance.job).process
+  let instance.id = exists('*jobpid') ? jobpid(instance.job) : job_info(instance.job).process
   let request = instance.Request('initialize', {'capabilities': {}}, function('s:GetCapabilitiesResult'), function('s:GetCapabilitiesError'), instance)
-  let s:instances[instance.pid] = instance
+  let s:instances[instance.id] = instance
   return instance
 endfunction
 
