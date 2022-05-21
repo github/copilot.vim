@@ -37,7 +37,7 @@ COMMANDS                                        *:Copilot*
                         to solution.  This is the default command if :Copilot
                         is called without an argument.
 
-OPTIONS
+OPTIONS                                         *copilot-options*
 
                                                 *g:copilot_filetypes*
 g:copilot_filetypes     A dictionary mapping file types to their enabled
@@ -61,6 +61,14 @@ g:copilot_filetypes     A dictionary mapping file types to their enabled
 b:copilot_enabled       Set to v:false to disable GitHub Copilot for the
                         current buffer.  Or set to v:true to force enabling
                         it, overriding g:copilot_filetypes.
+
+                                                *g:copilot_node_command*
+g:copilot_node_command  Tell Copilot what `node` binary to use with
+                        g:copilot_node_command. This is useful if the `node`
+                        in your PATH is an unsupported version.
+>
+                        let g:copilot_node_command =
+                              \ "~/.nodenv/versions/16.15.0/bin/node"
 
 MAPS                                            *copilot-maps*
 

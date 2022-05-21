@@ -5,13 +5,15 @@ let g:autoloaded_copilot_agent = 1
 
 scriptencoding utf-8
 
-let s:plugin_version = '1.3.0'
+let s:plugin_version = '1.3.2'
 
 let s:error_exit = -1
 
 let s:root = expand('<sfile>:h:h:h')
 
-let s:instances = {}
+if !exists('s:instances')
+  let s:instances = {}
+endif
 
 let s:jobstop = function(exists('*jobstop') ? 'jobstop' : 'job_stop')
 function! s:Kill(agent, ...) abort
@@ -69,7 +71,7 @@ function! s:RequestAwait() dict abort
 endfunction
 
 function s:RequestAgent() dict abort
-  return get(s:instances, self.agent_pid, v:null)
+  return get(s:instances, self.agent_id, v:null)
 endfunction
 
 if !exists('s:id')
@@ -80,7 +82,7 @@ function! s:AgentRequest(method, params, ...) dict abort
   let request = {'method': a:method, 'params': a:params, 'id': s:id}
   call s:Send(self, request)
   call extend(request, {
-        \ 'agent_pid': self.pid,
+        \ 'agent_id': self.id,
         \ 'Agent': function('s:RequestAgent'),
         \ 'Wait': function('s:RequestWait'),
         \ 'Await': function('s:RequestAwait'),
@@ -119,6 +121,7 @@ endfunction
 function! s:AgentCancel(request) dict abort
   if has_key(self.requests, get(a:request, 'id', ''))
     call remove(self.requests, a:request.id)
+    call self.Notify('$/cancelRequest', {'id': a:request.id})
   endif
   if get(a:request, 'status', '') ==# 'running'
     let a:request.status = 'canceled'
@@ -132,6 +135,7 @@ function! s:RequestCancel() dict abort
   elseif get(self, 'status', '') ==# 'running'
     let self.status = 'canceled'
   endif
+  return self
 endfunction
 
 function! s:DispatchMessage(agent, handler, id, params, ...) abort
@@ -169,7 +173,7 @@ function! s:OnMessage(agent, body, ...) abort
     elseif has_key(a:agent.methods, response.method)
       call timer_start(0, function('s:DispatchMessage', [a:agent, a:agent.methods[response.method], id, params]))
     else
-      return s:Send(a:agent, {"id": id, "code": -32700, "message": "Method not found: " . method})
+      return s:Send(a:agent, {"id": id, "error": {"code": -32700, "message": "Method not found: " . response.method}})
     endif
     return
   endif
@@ -253,7 +257,7 @@ function! s:OnExit(agent, code) abort
       let request.waiting[timer_start(0, function('s:Callback', [request, 'error', Cb]))] = 1
     endfor
   endfor
-  call timer_start(0, { _ -> get(s:instances, a:agent.pid) is# a:agent ? remove(s:instances, a:agent.pid) : {} })
+  call timer_start(0, { _ -> get(s:instances, a:agent.id) is# a:agent ? remove(s:instances, a:agent.id) : {} })
   call copilot#logger#Info('agent exited with status ' . a:code)
 endfunction
 
@@ -272,32 +276,38 @@ function! s:IsArmMacOS() abort
 endfunction
 
 function! s:Command() abort
-  if !has('nvim-0.5') && v:version < 802
+  if !has('nvim-0.6') && v:version < 802
     return [v:null, 'Vim version too old']
   endif
-  let node = get(g:, 'copilot_node_command', 'node')
-  if type(node) == type('')
-    let node = [node]
+  let node = get(g:, 'copilot_node_command', '')
+  if empty(node)
+    let node = ['node']
+  elseif type(node) == type('')
+    let node = [expand(node)]
   endif
   if !executable(get(node, 0, ''))
     if get(node, 0, '') ==# 'node'
-      return [v:null, 'Node not found in PATH']
+      return [v:null, 'Node.js not found in PATH']
     else
-      return [v:null, 'Node executable `' . get(node, 0, '') . "' not found"]
+      return [v:null, 'Node.js executable `' . get(node, 0, '') . "' not found"]
     endif
   endif
   let out = []
   let err = []
   let status = copilot#job#Stream(node + ['--version'], function('add', [out]), function('add', [err]))
   if status != 0
-    return [v:null, 'Node exited with status ' . status]
+    return [v:null, 'Node.js exited with status ' . status]
   endif
-  let major = +matchstr(join(out, ''), '^v\zs\d\+\ze\.')
+  let node_version = matchstr(join(out, ''), '^v\zs\d\+\.[^[:space:]]*')
+  let major = str2nr(node_version)
+  let too_new = major >= 18 && node_version !=# '18.0.0'
   if !get(g:, 'copilot_ignore_node_version')
-    if major < 16 && s:IsArmMacOS()
-      return [v:null, 'Node v16+ required on Apple Silicon but found ' . get(out, 0, 'nothing')]
-    elseif major < 12
-      return [v:null, 'Node v12+ required but found ' . get(out, 0, 'nothing')]
+    if major == 0
+      return [v:null, 'Could not determine Node.js version']
+    elseif (major < 16 || too_new) && s:IsArmMacOS()
+      return [v:null, 'Node.js version 16.x or 17.x required on Apple Silicon but found ' . node_version]
+    elseif major < 12 || too_new
+      return [v:null, 'Node.js version 12.x–17.x required but found ' . node_version]
     endif
   endif
   let agent = s:root . '/copilot/dist/agent.js'
@@ -362,7 +372,7 @@ function! copilot#agent#New(...) abort
         \ }
   let [command, command_error] = s:Command()
   if len(command_error)
-    let instance.pid = -1
+    let instance.id = -1
     let instance.startup_error = command_error
     return instance
   endif
@@ -371,9 +381,9 @@ function! copilot#agent#New(...) abort
         \ function('s:OnOut', [instance, state]),
         \ function('s:OnErr', [instance]),
         \ function('s:OnExit', [instance]))
-  let instance.pid = exists('*jobpid') ? jobpid(instance.job) : job_info(instance.job).process
+  let instance.id = exists('*jobpid') ? jobpid(instance.job) : job_info(instance.job).process
   let request = instance.Request('initialize', {'capabilities': {}}, function('s:GetCapabilitiesResult'), function('s:GetCapabilitiesError'), instance)
-  let s:instances[instance.pid] = instance
+  let s:instances[instance.id] = instance
   return instance
 endfunction
 
