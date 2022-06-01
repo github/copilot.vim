@@ -687,6 +687,8 @@ function! s:commands.setup(opts) abort
   echo 'Copilot: Authenticated as GitHub user ' . user
 endfunction
 
+let s:commands.auth = s:commands.setup
+
 function! s:commands.help(opts) abort
   return a:opts.mods . ' help ' . (len(a:opts.arg) ? ':Copilot_' . a:opts.arg : 'copilot')
 endfunction
@@ -743,6 +745,8 @@ function! s:commands.split(opts) abort
   return mods . ' pedit copilot://'
 endfunction
 
+let s:commands.open = s:commands.split
+
 function! copilot#CommandComplete(arg, lead, pos) abort
   let args = matchstr(strpart(a:lead, 0, a:pos), 'C\%[opilot][! ] *\zs.*')
   if args !~# ' '
@@ -755,22 +759,22 @@ endfunction
 
 function! copilot#Command(line1, line2, range, bang, mods, arg) abort
   let cmd = matchstr(a:arg, '^\%(\\.\|\S\)\+')
+  if !empty(cmd) && !has_key(s:commands, tr(cmd, '-', '_'))
+    return 'echoerr ' . string('Copilot: unknown command ' . string(cmd))
+  endif
   let arg = matchstr(a:arg, '\s\zs\S.*')
-  let opts = copilot#Call('checkStatus', {})
   try
+    let err = copilot#Agent().StartupError()
+    if !empty(err)
+      return 'echo ' . string('Copilot: ' . string(cmd))
+    endif
+    let opts = copilot#Call('checkStatus', {})
     if empty(cmd)
       if opts.status !=# 'OK' && opts.status !=# 'MaybeOK'
         let cmd = 'setup'
       else
         let cmd = 'panel'
       endif
-    elseif cmd ==# 'auth'
-      let cmd = 'setup'
-    elseif cmd ==# 'open'
-      let cmd = 'split'
-    endif
-    if !has_key(s:commands, tr(cmd, '-', '_'))
-      return 'echoerr ' . string('Copilot: unknown command ' . string(cmd))
     endif
     call extend(opts, {'line1': a:line1, 'line2': a:line2, 'range': a:range, 'bang': a:bang, 'mods': a:mods, 'arg': arg})
     let retval = s:commands[tr(cmd, '-', '_')](opts)
