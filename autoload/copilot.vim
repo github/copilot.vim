@@ -766,7 +766,7 @@ function! copilot#Command(line1, line2, range, bang, mods, arg) abort
   try
     let err = copilot#Agent().StartupError()
     if !empty(err)
-      return 'echo ' . string('Copilot: ' . string(cmd))
+      return 'echo ' . string('Copilot: ' . string(err))
     endif
     let opts = copilot#Call('checkStatus', {})
     if empty(cmd)
