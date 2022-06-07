@@ -133,6 +133,7 @@ function! copilot#panel#Open(opts) abort
     stopinsert
   else
     let params.doc.position.character = copilot#doc#UTF16Width(state.line)
+    let params.position.character = params.doc.position.character
   endif
   let response = copilot#Request('getPanelCompletions', params).Wait()
   if response.status ==# 'error'

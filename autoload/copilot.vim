@@ -50,7 +50,7 @@ function! copilot#Init(...) abort
 endfunction
 
 function! s:Start() abort
-  if exists('s:agent.job')
+  if exists('s:agent.job') || exists('s:agent.client_id')
     return
   endif
   let s:agent = copilot#agent#New({'notifications': {

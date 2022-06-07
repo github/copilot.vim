@@ -5,7 +5,7 @@ let g:autoloaded_copilot_agent = 1
 
 scriptencoding utf-8
 
-let s:plugin_version = '1.3.5'
+let s:plugin_version = '1.4.0'
 
 let s:error_exit = -1
 
@@ -13,6 +13,11 @@ let s:root = expand('<sfile>:h:h:h')
 
 if !exists('s:instances')
   let s:instances = {}
+endif
+
+" allow sourcing this file to reload the Lua file too
+if has('nvim')
+  lua package.loaded._copilot = nil
 endif
 
 let s:jobstop = function(exists('*jobstop') ? 'jobstop' : 'job_stop')
@@ -49,7 +54,8 @@ function! s:Send(agent, request) abort
 endfunction
 
 function! s:AgentNotify(method, params) dict abort
-  return s:Send(self, {'method': a:method, 'params': a:params})
+  call s:Send(self, {'method': a:method, 'params': a:params})
+  return v:true
 endfunction
 
 function! s:RequestWait() dict abort
@@ -77,20 +83,21 @@ endfunction
 if !exists('s:id')
   let s:id = 0
 endif
-function! s:AgentRequest(method, params, ...) dict abort
-  let s:id += 1
-  let request = {'method': a:method, 'params': a:params, 'id': s:id}
-  call s:Send(self, request)
-  call extend(request, {
-        \ 'agent_id': self.id,
+
+function s:SetUpRequest(agent, id, method, params, ...) abort
+  let request = {
+        \ 'agent_id': a:agent.id,
+        \ 'id': a:id,
+        \ 'method': a:method,
+        \ 'params': a:params,
         \ 'Agent': function('s:RequestAgent'),
         \ 'Wait': function('s:RequestWait'),
         \ 'Await': function('s:RequestAwait'),
         \ 'Cancel': function('s:RequestCancel'),
         \ 'resolve': [],
         \ 'reject': [],
-        \ 'status': 'running'})
-  let self.requests[s:id] = request
+        \ 'status': 'running'}
+  let a:agent.requests[a:id] = request
   let args = a:000[2:-1]
   if len(args)
     if !empty(a:1)
@@ -108,6 +115,13 @@ function! s:AgentRequest(method, params, ...) dict abort
     call add(request.reject, a:2)
   endif
   return request
+endfunction
+
+function! s:AgentRequest(method, params, ...) dict abort
+  let s:id += 1
+  let request = {'method': a:method, 'params': a:params, 'id': s:id}
+  call s:Send(self, request)
+  return call('s:SetUpRequest', [self, s:id, a:method, a:params] + a:000)
 endfunction
 
 function! s:AgentCall(method, params, ...) dict abort
@@ -160,7 +174,11 @@ function! s:OnMessage(agent, body, ...) abort
   if type(response) != v:t_dict
     return
   endif
+  return s:OnResponse(a:agent, response)
+endfunction
 
+function! s:OnResponse(agent, response, ...) abort
+  let response = a:response
   let id = get(response, 'id', v:null)
   if has_key(response, 'method')
     let params = get(response, 'params', v:null)
@@ -241,7 +259,7 @@ endfunction
 
 function! s:OnExit(agent, code) abort
   let a:agent.exit_status = a:code
-  call remove(a:agent, 'job')
+  unlet! a:agent.job
   for id in sort(keys(a:agent.requests), { a, b -> +a > +b })
     let request = remove(a:agent.requests, id)
     if request.status ==# 'canceled'
@@ -259,6 +277,53 @@ function! s:OnExit(agent, code) abort
   endfor
   call timer_start(0, { _ -> get(s:instances, a:agent.id) is# a:agent ? remove(s:instances, a:agent.id) : {} })
   call copilot#logger#Info('agent exited with status ' . a:code)
+endfunction
+
+function! copilot#agent#LspInit(agent_id, initialize_result) abort
+  if !has_key(s:instances, a:agent_id)
+    return
+  endif
+  let instance = s:instances[a:agent_id]
+  call s:GetCapabilitiesResult(a:initialize_result, instance)
+endfunction
+
+function! copilot#agent#LspExit(agent_id, code, signal) abort
+  if !has_key(s:instances, a:agent_id)
+    return
+  endif
+  let instance = remove(s:instances, a:agent_id)
+  unlet! instance.client_id
+  call s:OnExit(instance, a:code)
+endfunction
+
+function! copilot#agent#LspResponse(agent_id, opts, ...) abort
+  if !has_key(s:instances, a:agent_id)
+    return
+  endif
+  call s:OnResponse(s:instances[a:agent_id], a:opts)
+endfunction
+
+function! s:LspRequest(method, params, ...) dict abort
+  let id = v:lua.require'_copilot'.lsp_request(self.id, a:method, a:params)
+  return call('s:SetUpRequest', [self, id, a:method, a:params] + a:000)
+endfunction
+
+function! s:LspClose() dict abort
+  if !has_key(self, 'client_id')
+    return
+  endif
+  return luaeval('vim.lsp.get_client_by_id(_A).stop()', self.client_id)
+endfunction
+
+function! s:LspNotify(method, params) dict abort
+  return v:lua.require'_copilot'.rpc_notify(self.id, a:method, a:params)
+endfunction
+
+function copilot#agent#LspHandle(agent_id, response) abort
+  if !has_key(s:instances, a:agent_id)
+    return
+  endif
+  call s:OnResponse(s:instances[a:agent_id], a:response)
 endfunction
 
 unlet! s:is_arm_macos
@@ -351,7 +416,7 @@ function! s:AgentStartupError() dict abort
   while has_key(self, 'job') && !has_key(self, 'startup_error') && !has_key(self, 'capabilities')
     sleep 10m
   endwhile
-  if has_key(self, 'capabilities')
+  if has_key(self, 'capabilities') || has_key(self, 'client_id')
     return ''
   else
     return get(self, 'startup_error', 'Something unexpected went wrong spawning the agent')
@@ -376,13 +441,22 @@ function! copilot#agent#New(...) abort
     let instance.startup_error = command_error
     return instance
   endif
-  let state = {'headers': {}, 'mode': 'headers', 'buffer': ''}
-  let instance.job = copilot#job#Stream(command,
-        \ function('s:OnOut', [instance, state]),
-        \ function('s:OnErr', [instance]),
-        \ function('s:OnExit', [instance]))
-  let instance.id = exists('*jobpid') ? jobpid(instance.job) : job_info(instance.job).process
-  let request = instance.Request('initialize', {'capabilities': {}}, function('s:GetCapabilitiesResult'), function('s:GetCapabilitiesError'), instance)
+  if has('nvim')
+    call extend(instance, {
+        \ 'Close': function('s:LspClose'),
+        \ 'Notify': function('s:LspNotify'),
+        \ 'Request': function('s:LspRequest')})
+    let instance.client_id = v:lua.require'_copilot'.lsp_start_client(command, keys(instance.notifications) + keys(instance.methods) + ['LogMessage'])
+    let instance.id = instance.client_id
+  else
+    let state = {'headers': {}, 'mode': 'headers', 'buffer': ''}
+    let instance.job = copilot#job#Stream(command,
+          \ function('s:OnOut', [instance, state]),
+          \ function('s:OnErr', [instance]),
+          \ function('s:OnExit', [instance]))
+    let instance.id = exists('*jobpid') ? jobpid(instance.job) : job_info(instance.job).process
+    let request = instance.Request('initialize', {'capabilities': {'workspace': {'workspaceFolders': v:true}}}, function('s:GetCapabilitiesResult'), function('s:GetCapabilitiesError'), instance)
+  endif
   let s:instances[instance.id] = instance
   return instance
 endfunction
