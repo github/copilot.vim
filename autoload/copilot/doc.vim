@@ -82,5 +82,12 @@ endfunction
 
 function! copilot#doc#Params(...) abort
   let extra = a:0 ? a:1 : {}
-  return extend({'doc': extend(copilot#doc#Get(), get(extra, 'doc', {}))}, extra, 'keep')
+  let params = extend({'doc': extend(copilot#doc#Get(), get(extra, 'doc', {}))}, extra, 'keep')
+  let params.textDocument = {
+        \ 'uri': params.doc.uri,
+        \ 'languageId': params.doc.languageId,
+        \ 'relativePath': params.doc.relativePath,
+        \ }
+  let params.position = params.doc.position
+  return params
 endfunction

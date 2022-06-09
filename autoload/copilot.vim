@@ -36,62 +36,6 @@ function! copilot#HttpRequest(url, options, ...) abort
   return call('copilot#Call', ['httpRequest', extend({'url': a:url, 'timeout': 30000}, a:options)] + a:000)
 endfunction
 
-unlet! s:github
-function! s:OAuthToken() abort
-  if exists('s:github')
-    return get(s:github, 'oauth_token', '')
-  endif
-  if getfsize(s:config_hosts) > 0
-    try
-      let s:github = get(json_decode(join(readfile(s:config_hosts))), 'github.com', {})
-    catch
-      let s:github = {}
-    endtry
-  else
-    return ''
-  endif
-  return get(s:github, 'oauth_token', {})
-endfunction
-
-function! s:OAuthUser(token) abort
-  if len(a:token)
-    let user_response = copilot#HttpRequest('https://api.github.com/user', {'headers': {'Authorization': 'Bearer ' . a:token}})
-    let user_data = s:JsonBody(user_response)
-    if get(user_response, 'status') == 200 && has_key(user_data, 'login')
-      return user_data.login
-    endif
-  endif
-  return ''
-endfunction
-
-function! s:OAuthSave(token, user) abort
-  unlet! s:terms_accepted
-  if len(a:token) && len(a:user)
-    let s:github = {'oauth_token': a:token, 'user': a:user}
-    call writefile(
-          \ [json_encode({"github.com": s:github})],
-          \ s:config_hosts)
-    return 1
-  endif
-  let s:github = {}
-  call delete(s:config_hosts)
-endfunction
-
-function! s:OAuthUserCallback(token, response) abort
-  try
-    let user_data = s:JsonBody(a:response)
-    if get(a:response, 'status') == 200 && has_key(user_data, 'login')
-      let s:github = {'oauth_token': a:token, 'user': user_data.login}
-    endif
-  catch
-    call copilot#logger#Exception()
-  endtry
-endfunction
-
-if !exists('s:github') && $CODESPACES ==# 'true' && len($GITHUB_TOKEN)
-  let s:github = {'oauth_token': $GITHUB_TOKEN, 'user': empty($GITHUB_USER) ? 'codespace-user': $GITHUB_USER}
-endif
-
 function! s:StatusNotification(params, ...) abort
   let status = get(a:params, 'status', '')
   if status ==? 'error'
@@ -106,7 +50,7 @@ function! copilot#Init(...) abort
 endfunction
 
 function! s:Start() abort
-  if exists('s:agent.job')
+  if exists('s:agent.job') || exists('s:agent.client_id')
     return
   endif
   let s:agent = copilot#agent#New({'notifications': {
@@ -143,9 +87,6 @@ function! copilot#Notify(method, params, ...) abort
   return call(agent.Notify, [a:method, a:params] + a:000)
 endfunction
 
-let s:terms_version = '2021-10-14'
-unlet! s:terms_accepted
-
 function! s:ReadTerms() abort
   let file = s:config_root . '/terms.json'
   try
@@ -158,23 +99,6 @@ function! s:ReadTerms() abort
   catch
   endtry
   return {}
-endfunction
-
-function! s:TermsAccepted(force_reload) abort
-  if exists('s:terms_accepted') && !a:force_reload
-    return s:terms_accepted
-  endif
-  call s:OAuthToken()
-  let file = s:config_root . '/terms.json'
-  if exists('s:github.user') && filereadable(file)
-    try
-      let s:terms_accepted = s:ReadTerms()[s:github.user].version >= s:terms_version
-      return s:terms_accepted
-    catch
-    endtry
-  endif
-  let s:terms_accepted = 0
-  return s:terms_accepted
 endfunction
 
 function! copilot#NvimNs() abort
@@ -235,15 +159,11 @@ endfunction
 
 function! copilot#Enabled() abort
   return get(g:, 'copilot_enabled', 1)
-        \ && s:TermsAccepted(0)
         \ && empty(s:BufferDisabled())
         \ && empty(copilot#Agent().StartupError())
 endfunction
 
 function! copilot#Complete(...) abort
-  if !s:TermsAccepted(0)
-    return {}
-  endif
   if exists('g:_copilot_timer')
     call timer_stop(remove(g:, '_copilot_timer'))
   endif
@@ -717,57 +637,6 @@ function! copilot#Accept(...) abort
   endif
 endfunction
 
-function! s:DeviceResponse(result, login_data, poll_response) abort
-  let data = s:JsonBody(a:poll_response)
-  let should_cancel = get(get(s:, 'login_data', {}), 'device_code', '') !=# a:login_data.device_code
-  if has_key(data, 'access_token')
-    if !should_cancel
-      unlet s:login_data
-    endif
-    let response = copilot#HttpRequest(
-          \ 'https://api.github.com/copilot_internal/token',
-          \ {'headers': {'Authorization': 'Bearer ' . data.access_token}})
-    if response.status ==# 403
-      let a:result.success = 0
-      let a:result.error = "You don't have access to GitHub Copilot. Join the waitlist by visiting https://copilot.github.com"
-    else
-      let a:result.user = s:OAuthUser(data.access_token)
-      let a:result.success = !empty(a:result.user)
-      if a:result.success
-        call s:OAuthSave(data.access_token, a:result.user)
-      else
-        let a:result.error = "Could not retrieve GitHub user."
-      endif
-    endif
-  elseif should_cancel
-    let a:result.success = 0
-    let a:result.error = "Something went wrong."
-  elseif has_key(a:result, 'success')
-    return
-  elseif index(['authorization_pending', 'slow_down'], get(data, 'error', '')) != -1
-    call timer_start((get(data, 'interval', a:login_data.interval)+1) * 1000, function('s:DevicePoll', [a:result, a:login_data]))
-  elseif has_key(data, 'error_description')
-    let a:result.success = 0
-    let a:result.error = data.error_description
-    unlet! s:login_data
-    echohl ErrorMsg
-    echomsg 'Copilot: ' . data.error_description
-    echohl NONE
-  else
-    let a:result.success = 0
-    let a:result.error = "Something went wrong."
-  endif
-endfunction
-
-let s:client_id = "Iv1.b507a08c87ecfe98"
-
-function! s:DevicePoll(result, login_data, timer) abort
-  call copilot#HttpRequest(
-        \ 'https://github.com/login/oauth/access_token?grant_type=urn:ietf:params:oauth:grant-type:device_code&device_code=' . a:login_data.device_code . '&client_id=' . s:client_id,
-        \ {'headers': {'Accept': 'application/json'}},
-        \ function('s:DeviceResponse', [a:result, a:login_data]))
-endfunction
-
 function! s:BrowserCallback(into, code) abort
   let a:into.code = a:code
 endfunction
@@ -817,7 +686,7 @@ endfunction
 function! s:EnabledStatusMessage() abort
   let buf_disabled = s:BufferDisabled()
   if !s:has_ghost_text && bufwinid('copilot://') == -1
-    return "Neovim 0.6 prerelease required to support ghost text"
+    return "Neovim 0.6 required to support ghost text"
   elseif !copilot#IsMapped()
     return '<Tab> map has been disabled or is claimed by another plugin'
   elseif !get(g:, 'copilot_enabled', 1)
@@ -844,12 +713,14 @@ function! s:VerifySetup() abort
     return
   endif
 
-  if empty(s:OAuthToken())
+  let status = copilot#Call('checkStatus', {})
+
+  if !has_key(status, 'user')
     echo 'Copilot: Not authenticated. Invoke :Copilot setup'
     return
   endif
 
-  if !s:TermsAccepted(1)
+  if status.status ==# 'NoTelemetryConsent'
     echo 'Copilot: Telemetry terms not accepted. Invoke :Copilot setup'
     return
   endif
@@ -882,15 +753,12 @@ function! s:commands.status(opts) abort
 endfunction
 
 function! s:commands.signout(opts) abort
-  unlet! s:github
-  if empty(s:OAuthToken())
-    echo 'Copilot: Not signed in'
+  let status = copilot#Call('checkStatus', {})
+  if has_key(status, 'user')
+    echo 'Copilot: Signed out as GitHub user ' . status.user
   else
-    let user = get(s:github, 'user', '<unknown>')
-    let s:github = {}
-    echo 'Copilot: Signed out as GitHub user ' . user
+    echo 'Copilot: Not signed in'
   endif
-  call delete(s:config_hosts)
   call copilot#Call('signOut', {})
 endfunction
 
@@ -902,23 +770,24 @@ function! s:commands.setup(opts) abort
 
   let browser = copilot#Browser()
 
-  if empty(s:OAuthToken()) || a:opts.bang
-    let response = copilot#HttpRequest('https://github.com/login/device/code', {
-          \ 'method': 'POST',
-          \ 'headers': {'Accept': 'application/json'},
-          \ 'json': {'client_id': s:client_id, 'scope': 'read:user'}})
-    let data = s:JsonBody(response)
-    let s:login_data = data
-    let @+ = data.user_code
-    let @* = data.user_code
-    echo "First copy your one-time code: " . data.user_code
+  if has_key(copilot#Call('checkStatus', {}), 'user')
+    let data = {}
+  else
+    let data = copilot#Call('signInInitiate', {})
+  endif
+
+  if has_key(data, 'verificationUri')
+    let uri = data.verificationUri
+    let @+ = data.userCode
+    let @* = data.userCode
+    echo "First copy your one-time code: " . data.userCode
     try
       if len(&mouse)
         let mouse = &mouse
         set mouse=
       endif
       if get(a:opts, 'bang')
-        echo "In your browser, visit " . data.verification_uri
+        echo "In your browser, visit " . uri
       elseif len(browser)
         echo "Press ENTER to open GitHub in your browser"
         let c = getchar()
@@ -926,48 +795,35 @@ function! s:commands.setup(opts) abort
           let c = getchar()
         endwhile
         let status = {}
-        call copilot#job#Stream(browser + [data.verification_uri], v:null, v:null, function('s:BrowserCallback', [status]))
+        call copilot#job#Stream(browser + [uri], v:null, v:null, function('s:BrowserCallback', [status]))
         let time = reltime()
         while empty(status) && reltimefloat(reltime(time)) < 5
           sleep 10m
         endwhile
         if get(status, 'code', browser[0] !=# 'xdg-open') != 0
-          echo "Failed to open browser.  Visit " . data.verification_uri
+          echo "Failed to open browser.  Visit " . uri
         else
-          echo "Opened " . data.verification_uri
+          echo "Opened " . uri
         endif
       else
-        echo "Could not find browser.  Visit " . data.verification_uri
+        echo "Could not find browser.  Visit " . uri
       endif
       echo "Waiting (could take up to 5 seconds)"
-      let result = {}
-      call timer_start((data.interval+1) * 1000, function('s:DevicePoll', [result, data]))
-      try
-        while !has_key(result, 'success')
-          sleep 100m
-        endwhile
-      finally
-        if !has_key(result, 'success')
-          let result.success = 0
-          let result.error = "Interrupt"
-        endif
-        redraw
-      endtry
+      let request = copilot#Request('signInConfirm', {'userCode': data.userCode}).Wait()
     finally
       if exists('mouse')
         let &mouse = mouse
       endif
     endtry
-    if !result.success
-      return 'echoerr ' . string('Copilot: Authentication failure: ' . result.error)
+    if request.status ==# 'error'
+      return 'echoerr ' . string('Copilot: Authentication failure: ' . request.error.message)
     endif
   endif
 
-  if !exists('s:github.user')
-    return 'echoerr ' . string('Copilot: Something went wrong retrieving GitHub user.')
-  endif
+  let status = copilot#Call('checkStatus', {})
+  let user = status.user
 
-  if !s:TermsAccepted(1)
+  if status.status ==# 'NoTelemetryConsent'
     let terms_url = "https://github.co/copilot-telemetry-terms"
     echo "I agree to these telemetry terms as part of the GitHub Copilot technical preview."
     echo "<" . terms_url . ">"
@@ -991,15 +847,13 @@ function! s:commands.setup(opts) abort
       endif
     endwhile
     redraw
-    let terms = s:ReadTerms()
-    let terms[s:github.user] = {'version': s:terms_version}
-    call writefile([json_encode(terms)], s:config_root . '/terms.json')
-    unlet! s:terms_accepted
+    call copilot#Call('recordTelemetryConsent', {})
   endif
 
-  call copilot#Call('checkStatus', {})
-  echo 'Copilot: Authenticated as GitHub user ' . s:github.user
+  echo 'Copilot: Authenticated as GitHub user ' . user
 endfunction
+
+let s:commands.auth = s:commands.setup
 
 function! s:commands.help(opts) abort
   return a:opts.mods . ' help ' . (len(a:opts.arg) ? ':Copilot_' . a:opts.arg : 'copilot')
@@ -1057,6 +911,8 @@ function! s:commands.split(opts) abort
   return mods . ' pedit copilot://'
 endfunction
 
+let s:commands.open = s:commands.split
+
 function! copilot#CommandComplete(arg, lead, pos) abort
   let args = matchstr(strpart(a:lead, 0, a:pos), 'C\%[opilot][! ] *\zs.*')
   if args !~# ' '
@@ -1069,23 +925,24 @@ endfunction
 
 function! copilot#Command(line1, line2, range, bang, mods, arg) abort
   let cmd = matchstr(a:arg, '^\%(\\.\|\S\)\+')
+  if !empty(cmd) && !has_key(s:commands, tr(cmd, '-', '_'))
+    return 'echoerr ' . string('Copilot: unknown command ' . string(cmd))
+  endif
   let arg = matchstr(a:arg, '\s\zs\S.*')
   try
+    let err = copilot#Agent().StartupError()
+    if !empty(err)
+      return 'echo ' . string('Copilot: ' . string(err))
+    endif
+    let opts = copilot#Call('checkStatus', {})
     if empty(cmd)
-      if empty(s:OAuthToken()) || !s:TermsAccepted(1)
+      if opts.status !=# 'OK' && opts.status !=# 'MaybeOK'
         let cmd = 'setup'
       else
         let cmd = 'panel'
       endif
-    elseif cmd ==# 'auth'
-      let cmd = 'setup'
-    elseif cmd ==# 'open'
-      let cmd = 'split'
     endif
-    if !has_key(s:commands, tr(cmd, '-', '_'))
-      return 'echoerr ' . string('Copilot: unknown command ' . string(cmd))
-    endif
-    let opts = {'line1': a:line1, 'line2': a:line2, 'range': a:range, 'bang': a:bang, 'mods': a:mods, 'arg': arg}
+    call extend(opts, {'line1': a:line1, 'line2': a:line2, 'range': a:range, 'bang': a:bang, 'mods': a:mods, 'arg': arg})
     let retval = s:commands[tr(cmd, '-', '_')](opts)
     if type(retval) == v:t_string
       return retval
