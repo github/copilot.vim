@@ -5,7 +5,7 @@ let g:autoloaded_copilot_agent = 1
 
 scriptencoding utf-8
 
-let s:plugin_version = '1.4.0'
+let s:plugin_version = '1.4.1'
 
 let s:error_exit = -1
 
@@ -259,7 +259,12 @@ endfunction
 
 function! s:OnExit(agent, code) abort
   let a:agent.exit_status = a:code
-  unlet! a:agent.job
+  if has_key(a:agent, 'job')
+    call remove(a:agent, 'job')
+  endif
+  if has_key(a:agent, 'client_id')
+    call remove(a:agent, 'client_id')
+  endif
   for id in sort(keys(a:agent.requests), { a, b -> +a > +b })
     let request = remove(a:agent.requests, id)
     if request.status ==# 'canceled'
@@ -284,7 +289,7 @@ function! copilot#agent#LspInit(agent_id, initialize_result) abort
     return
   endif
   let instance = s:instances[a:agent_id]
-  call s:GetCapabilitiesResult(a:initialize_result, instance)
+  call timer_start(0, { _ -> s:GetCapabilitiesResult(a:initialize_result, instance)})
 endfunction
 
 function! copilot#agent#LspExit(agent_id, code, signal) abort
@@ -292,7 +297,6 @@ function! copilot#agent#LspExit(agent_id, code, signal) abort
     return
   endif
   let instance = remove(s:instances, a:agent_id)
-  unlet! instance.client_id
   call s:OnExit(instance, a:code)
 endfunction
 
@@ -305,7 +309,13 @@ endfunction
 
 function! s:LspRequest(method, params, ...) dict abort
   let id = v:lua.require'_copilot'.lsp_request(self.id, a:method, a:params)
-  return call('s:SetUpRequest', [self, id, a:method, a:params] + a:000)
+  if id isnot# v:null
+    return call('s:SetUpRequest', [self, id, a:method, a:params] + a:000)
+  endif
+  if has_key(self, 'client_id')
+    call copilot#agent#LspExit(self.client_id, -1, -1)
+  endif
+  throw 'copilot#agent: LSP client not available'
 endfunction
 
 function! s:LspClose() dict abort

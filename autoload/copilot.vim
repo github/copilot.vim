@@ -702,10 +702,6 @@ function! s:commands.feedback(opts) abort
   endif
 endfunction
 
-function! s:commands.log(opts) abort
-  return a:opts.mods . ' split +$ ' . fnameescape(copilot#logger#File())
-endfunction
-
 function! s:commands.restart(opts) abort
   call s:Stop()
   let err = copilot#Agent().StartupError()
@@ -759,10 +755,13 @@ endfunction
 
 function! copilot#Command(line1, line2, range, bang, mods, arg) abort
   let cmd = matchstr(a:arg, '^\%(\\.\|\S\)\+')
+  let arg = matchstr(a:arg, '\s\zs\S.*')
+  if cmd ==# 'log'
+    return a:mods . ' split +$ ' . fnameescape(copilot#logger#File())
+  endif
   if !empty(cmd) && !has_key(s:commands, tr(cmd, '-', '_'))
     return 'echoerr ' . string('Copilot: unknown command ' . string(cmd))
   endif
-  let arg = matchstr(a:arg, '\s\zs\S.*')
   try
     let err = copilot#Agent().StartupError()
     if !empty(err)

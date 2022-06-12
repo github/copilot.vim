@@ -29,26 +29,31 @@ copilot.lsp_start_client = function(cmd, handler_names)
 end
 
 copilot.lsp_request = function(client_id, method, params, bufnr)
+  local client = vim.lsp.get_client_by_id(client_id)
+  if not client then return end
   bufnr = bufnr or 0
   vim.lsp.buf_attach_client(bufnr, client_id)
-  params.uri = vim.uri_from_bufnr(bufnr)
   local _, id
-  _, id = vim.lsp.get_client_by_id(client_id).request(method, params, function(err, result)
+  _, id = client.request(method, params, function(err, result)
     vim.call('copilot#agent#LspResponse', client_id, {id = id, error = err, result = result}, bufnr)
   end)
   return id
 end
 
 copilot.rpc_request = function(client_id, method, params)
+  local client = vim.lsp.get_client_by_id(client_id)
+  if not client then return end
   local _, id
-  _, id = vim.lsp.get_client_by_id(client_id).rpc.request(method, params, function(err, result)
+  _, id = client.rpc.request(method, params, function(err, result)
     vim.call('copilot#agent#LspResponse', client_id, {id = id, error = err, result = result})
   end)
   return id
 end
 
 copilot.rpc_notify = function(client_id, method, params)
-  return vim.lsp.get_client_by_id(client_id).rpc.notify(method, params)
+  local client = vim.lsp.get_client_by_id(client_id)
+  if not client then return end
+  return client.rpc.notify(method, params)
 end
 
 return copilot
