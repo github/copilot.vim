@@ -587,7 +587,7 @@ function! s:commands.status(opts) abort
 endfunction
 
 function! s:commands.signout(opts) abort
-  let status = copilot#Call('checkStatus', {})
+  let status = copilot#Call('checkStatus', {'options': {'localChecksOnly': v:true}})
   if has_key(status, 'user')
     echo 'Copilot: Signed out as GitHub user ' . status.user
   else
@@ -604,7 +604,8 @@ function! s:commands.setup(opts) abort
 
   let browser = copilot#Browser()
 
-  if has_key(copilot#Call('checkStatus', {}), 'user')
+  let status = copilot#Call('checkStatus', {})
+  if has_key(status, 'user')
     let data = {}
   else
     let data = copilot#Call('signInInitiate', {})
@@ -651,11 +652,12 @@ function! s:commands.setup(opts) abort
     endtry
     if request.status ==# 'error'
       return 'echoerr ' . string('Copilot: Authentication failure: ' . request.error.message)
+    else
+      let status = request.result
     endif
   endif
 
-  let status = copilot#Call('checkStatus', {})
-  let user = status.user
+  let user = get(status, 'user', '<unknown>')
 
   if status.status ==# 'NoTelemetryConsent'
     let terms_url = "https://github.co/copilot-telemetry-terms"
@@ -767,7 +769,7 @@ function! copilot#Command(line1, line2, range, bang, mods, arg) abort
     if !empty(err)
       return 'echo ' . string('Copilot: ' . string(err))
     endif
-    let opts = copilot#Call('checkStatus', {})
+    let opts = copilot#Call('checkStatus', {'options': {'localChecksOnly': v:true}})
     if empty(cmd)
       if opts.status !=# 'OK' && opts.status !=# 'MaybeOK'
         let cmd = 'setup'

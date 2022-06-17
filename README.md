@@ -1,27 +1,20 @@
 # Copilot.vim
 
-GitHub Copilot is an AI pair programmer which suggests line completions and
-entire function bodies as you type. GitHub Copilot is powered by the OpenAI
-Codex AI system, trained on public Internet text and billions of lines of
-code.
+GitHub Copilot uses OpenAI Codex to suggest code and entire functions in
+real-time right from your editor. Trained on billions of lines of public code,
+GitHub Copilot turns natural language prompts including comments and method
+names into coding suggestions across dozens of languages.
 
 Copilot.vim is a Vim plugin for GitHub Copilot.  For now, it requires Neovim
 0.6 (for virtual lines support) and a Node.js installation.
 
-To learn more about GitHub Copilot, visit https://copilot.github.com.
+To learn more, visit [aka.ms/copilot-learn-more](https://aka.ms/copilot-learn-more)
 
-## Technical Preview
+## Subscription
 
-Access to GitHub Copilot is limited to a small group of testers during the
-technical preview of GitHub Copilot. If you don’t have access to the technical
-preview, you will see an error when you try to use this extension.
-
-Don’t have access yet? [Sign up for the
-waitlist](https://github.com/features/copilot/signup) for your chance to try
-it out. GitHub will notify you once you have access.
-
-This technical preview is a Beta Preview under the [GitHub Terms of
-Service](https://docs.github.com/en/github/site-policy/github-terms-of-service#j-beta-previews).
+Once GitHub Copilot is generally available, it will require a subscription. It
+will be free for verified students and maintainers of popular open source
+projects on GitHub.
 
 ## Getting started
 
@@ -43,3 +36,17 @@ Service](https://docs.github.com/en/github/site-policy/github-terms-of-service#j
 
 Suggestions are displayed inline and can be accepted by pressing the tab key.
 See `:help copilot` for more information.
+
+During the technical preview, GitHub Copilot is considered a Beta Preview
+under the [GitHub Terms of
+Service](https://docs.github.com/en/site-policy/github-terms/github-terms-of-service#j-beta-previews).
+Once GitHub Copilot is generally available, it will be subject to the [GitHub
+Additional Product
+Terms](https://docs.github.com/en/site-policy/github-terms/github-terms-for-additional-products-and-features).
+
+
+## Troubleshooting
+
+We’d love to get your help in making GitHub Copilot better! If you have
+feedback or encounter any problems, please reach out on our [Feedback
+forum](https://github.com/github-community/community/discussions/categories/copilot).
