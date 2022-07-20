@@ -428,6 +428,8 @@ endfunction
 function! copilot#OnCompleteChanged() abort
   if s:HideDuringCompletion()
     return copilot#Clear()
+  else
+    return copilot#Schedule()
   endif
 endfunction
 
