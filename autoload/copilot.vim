@@ -18,10 +18,10 @@ else
 endif
 let s:config_root .= '/github-copilot'
 
-"\ if exists('g:copilot_config_root')
-"\     let s:config_root = g:copilot_config_root
+if exists('g:copilot_config_root')
+    let s:config_root = g:copilot_config_root
     " let user change the config root
-"\ endif
+endif
 
 if !isdirectory(s:config_root)
   call mkdir(s:config_root, 'p', 0700)
