@@ -329,7 +329,7 @@ function! s:OpenPseudoSplit(basewinid) abort
   let current_opts = getwinvar(winid, '&')
   call filter(opts, { k, v -> v !=# current_opts[k] })
   for [key, val] in items(opts)
-    call setwinvar(winid, '&' . key, val)
+    silent! call setwinvar(winid, '&' . key, val)
   endfor
   call setmatches(getmatches(a:basewinid), winid)
   return winid
