@@ -331,6 +331,7 @@ function! s:OpenPseudoSplit(basewinid) abort
   for [key, val] in items(opts)
     call setwinvar(winid, '&' . key, val)
   endfor
+  call setmatches(getmatches(a:basewinid), winid)
   return winid
 endfunction
 
