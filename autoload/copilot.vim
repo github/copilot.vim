@@ -317,18 +317,18 @@ function! s:OpenPseudoSplit(basewinid) abort
         \ 'scrollbar': 0,
         \ 'zindex': 10})
   call setwinvar(winid, 'copilot_pseudo_split', a:basewinid)
-  let dest_options = getwinvar(0, '&')
-  if empty(dest_options.wincolor)
-    let dest_options.wincolor = 'Normal'
+  let opts = getwinvar(a:basewinid, '&')
+  if empty(opts.wincolor)
+    let opts.wincolor = 'Normal'
   endif
-  if dest_options.signcolumn ==# 'auto' && !empty(sign_getplaced(bufnr, {'group': '*'})[0].signs)
-    let dest_options.signcolumn = 'yes'
+  if opts.signcolumn ==# 'auto' && !empty(sign_getplaced(bufnr, {'group': '*'})[0].signs)
+    let opts.signcolumn = 'yes'
   endif
-  call remove(dest_options, 'cursorline')
-  call remove(dest_options, 'foldmethod')
-  let current_options = getwinvar(winid, '&')
-  call filter(dest_options, 'v:val !=# current_options[v:key]')
-  for [key, val] in items(dest_options)
+  call remove(opts, 'cursorline')
+  call remove(opts, 'foldmethod')
+  let current_opts = getwinvar(winid, '&')
+  call filter(opts, { k, v -> v !=# current_opts[k] })
+  for [key, val] in items(opts)
     call setwinvar(winid, '&' . key, val)
   endfor
   return winid
@@ -405,8 +405,8 @@ function! s:PopupPreview(lines, outdent, delete, ...) abort
     return 1
   endif
   if !has('patch-8.2.3627')
-    " screenpos() returns weird value after setbufvar(), so define l:leftbarwidth here
-    let leftbarwidth = screenpos(0, line('.'), winsaveview().leftcol + 1).col - win_screenpos(0)[1]
+    " screenpos() returns strange value after setbufvar(), so save textoff here
+    let textoff = screenpos(0, line('.'), winsaveview().leftcol + 1).col - win_screenpos(0)[1]
   endif
   let col = col('.') - a:outdent - 1
   let typed = strpart(getline('.'), 0, col)
@@ -432,7 +432,7 @@ function! s:PopupPreview(lines, outdent, delete, ...) abort
   endif
   let wininfo = getwininfo(win_getid())[0]
   if !has('patch-8.2.3627')
-    let wininfo.textoff = leftbarwidth
+    let wininfo.textoff = textoff
   endif
   call popup_setoptions(winid, {
         \ 'line': 'cursor',
@@ -458,15 +458,17 @@ function! s:PopupPreview(lines, outdent, delete, ...) abort
           \ 'maxwidth': wininfo.width,
           \ 'minwidth': wininfo.width,
           \ 'firstline': line('.') + 1})
-    let line = line('.')
-    for _ in range(popup_getpos(pseudo_split).height)
-      let line += 1
-      if foldclosed(line) < 0
-        continue
-      endif
-      call win_execute(pseudo_split, printf('%d,%dfold', foldclosed(line), foldclosedend(line)))
-      let line = foldclosedend(line)
-    endfor
+    if &foldenable
+      let line = line('.')
+      for _ in range(popup_getpos(pseudo_split).height)
+        let line += 1
+        if foldclosed(line) < 0
+          continue
+        endif
+        call win_execute(pseudo_split, foldclosed(line) . ',' . foldclosedend(line) . 'fold')
+        let line = foldclosedend(line)
+      endfor
+    endif
     call popup_show(pseudo_split)
   endif
   return 1
