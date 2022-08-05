@@ -115,14 +115,15 @@ function! copilot#Clear() abort
   if exists('b:_copilot')
     call copilot#agent#Cancel(get(b:_copilot, 'first', {}))
     call copilot#agent#Cancel(get(b:_copilot, 'cycling', {}))
-    unlet b:_copilot
   endif
   call s:UpdatePreview()
+  unlet! b:_copilot
   return ''
 endfunction
 
 function! copilot#Dismiss() abort
   call copilot#Clear()
+  call s:UpdatePreview()
   return ''
 endfunction
 
@@ -394,7 +395,11 @@ function! s:Trigger(bufnr, timer) abort
     let g:_copilot_timer = timer_start(100, function('s:Trigger', [a:bufnr]))
     return
   endif
-  call copilot#Complete(function('s:HandleTriggerResult'), function('s:HandleTriggerResult'))
+  try
+    call copilot#Complete(function('s:HandleTriggerResult'), function('s:HandleTriggerResult'))
+  catch
+    call copilot#logger#Exception()
+  endtry
 endfunction
 
 function! copilot#IsMapped() abort
@@ -428,6 +433,8 @@ endfunction
 function! copilot#OnCompleteChanged() abort
   if s:HideDuringCompletion()
     return copilot#Clear()
+  else
+    return copilot#Schedule()
   endif
 endfunction
 
@@ -695,7 +702,7 @@ function! s:commands.help(opts) abort
   return a:opts.mods . ' help ' . (len(a:opts.arg) ? ':Copilot_' . a:opts.arg : 'copilot')
 endfunction
 
-let s:feedback_url = 'https://github.com/github/feedback/discussions/categories/copilot-feedback'
+let s:feedback_url = 'https://github.com/github-community/community/discussions/categories/copilot'
 function! s:commands.feedback(opts) abort
   echo s:feedback_url
   let browser = copilot#Browser()
@@ -769,9 +776,16 @@ function! copilot#Command(line1, line2, range, bang, mods, arg) abort
     if !empty(err)
       return 'echo ' . string('Copilot: ' . string(err))
     endif
-    let opts = copilot#Call('checkStatus', {'options': {'localChecksOnly': v:true}})
+    try
+      let opts = copilot#Call('checkStatus', {'options': {'localChecksOnly': v:true}})
+    catch
+      call copilot#logger#Exception()
+      let opts = {'status': 'VimException'}
+    endtry
     if empty(cmd)
-      if opts.status !=# 'OK' && opts.status !=# 'MaybeOK'
+      if opts.status ==# 'VimException'
+        return a:mods . ' split +$ ' . fnameescape(copilot#logger#File())
+      elseif opts.status !=# 'OK' && opts.status !=# 'MaybeOK'
         let cmd = 'setup'
       else
         let cmd = 'panel'

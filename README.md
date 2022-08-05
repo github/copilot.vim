@@ -8,13 +8,13 @@ names into coding suggestions across dozens of languages.
 Copilot.vim is a Vim plugin for GitHub Copilot.  For now, it requires Neovim
 0.6 (for virtual lines support) and a Node.js installation.
 
-To learn more, visit [aka.ms/copilot-learn-more](https://aka.ms/copilot-learn-more)
+To learn more, visit
+[github.com/features/copilot](https://github.com/features/copilot).
 
 ## Subscription
 
-Once GitHub Copilot is generally available, it will require a subscription. It
-will be free for verified students and maintainers of popular open source
-projects on GitHub.
+GitHub Copilot requires a subscription. It is free for verified students and
+maintainers of popular open source projects on GitHub.
 
 ## Getting started
 
@@ -37,11 +37,7 @@ projects on GitHub.
 Suggestions are displayed inline and can be accepted by pressing the tab key.
 See `:help copilot` for more information.
 
-During the technical preview, GitHub Copilot is considered a Beta Preview
-under the [GitHub Terms of
-Service](https://docs.github.com/en/site-policy/github-terms/github-terms-of-service#j-beta-previews).
-Once GitHub Copilot is generally available, it will be subject to the [GitHub
-Additional Product
+GitHub Copilot is subject to the [GitHub Additional Product
 Terms](https://docs.github.com/en/site-policy/github-terms/github-terms-for-additional-products-and-features).
 
 
