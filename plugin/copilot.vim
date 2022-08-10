@@ -17,6 +17,7 @@ function! s:ColorScheme() abort
   else
     hi def CopilotSuggestion guifg=#808080 ctermfg=8
   endif
+  hi def link CopilotAnnotation Normal
 endfunction
 
 function! s:MapTab() abort

@@ -5,9 +5,19 @@ let g:autoloaded_copilot = 1
 
 scriptencoding utf-8
 
-let s:has_ghost_text = has('nvim-0.6') && exists('*nvim_buf_get_mark')
+let s:has_nvim_ghost_text = has('nvim-0.6') && exists('*nvim_buf_get_mark')
+let s:has_vim_ghost_text = has('patch-9.0.0162') && has('textprop')
+let s:has_ghost_text = s:has_nvim_ghost_text || s:has_vim_ghost_text
 
 let s:hlgroup = 'CopilotSuggestion'
+let s:annot_hlgroup = 'CopilotAnnotation'
+
+if s:has_vim_ghost_text && empty(prop_type_get(s:hlgroup))
+  call prop_type_add(s:hlgroup, {'highlight': s:hlgroup})
+endif
+if s:has_vim_ghost_text && empty(prop_type_get(s:annot_hlgroup))
+  call prop_type_add(s:annot_hlgroup, {'highlight': s:annot_hlgroup})
+endif
 
 if len($XDG_CONFIG_HOME)
   let s:config_root = $XDG_CONFIG_HOME
@@ -205,15 +215,16 @@ function! s:SuggestionTextWithAdjustments() abort
       return ['', 0, 0, '']
     endif
     let typed = strpart(line, 0, offset)
-    let delete = strchars(strpart(line, offset))
+    let delete = strpart(line, offset)
     let uuid = get(choice, 'uuid', '')
-    if typed ==# strpart(choice.text, 0, offset)
-      return [strpart(choice.text, offset), 0, delete, uuid]
-    elseif typed =~# '^\s*$'
+    if typed =~# '^\s*$'
       let leading = matchstr(choice.text, '^\s\+')
-      if strpart(typed, 0, len(leading)) == leading
-        return [strpart(choice.text, len(leading)), len(typed) - len(leading), delete, uuid]
+      let unindented = strpart(choice.text, len(leading))
+      if strpart(typed, 0, len(leading)) == leading && unindented !=# delete
+        return [unindented, len(typed) - len(leading), strchars(delete), uuid]
       endif
+    elseif typed ==# strpart(choice.text, 0, offset)
+      return [strpart(choice.text, offset), 0, strchars(delete), uuid]
     endif
   catch
     call copilot#logger#Exception()
@@ -330,8 +341,11 @@ function! s:WindowPreview(lines, outdent, delete, ...) abort
 endfunction
 
 function! s:ClearPreview() abort
-  if exists('*nvim_buf_del_extmark')
+  if s:has_nvim_ghost_text
     call nvim_buf_del_extmark(0, copilot#NvimNs(), 1)
+  elseif s:has_vim_ghost_text
+    call prop_remove({'type': s:hlgroup, 'all': v:true})
+    call prop_remove({'type': s:annot_hlgroup, 'all': v:true})
   endif
 endfunction
 
@@ -349,24 +363,36 @@ function! s:UpdatePreview() abort
       return s:ClearPreview()
     endif
     if exists('b:_copilot.cycling_callbacks')
-      let annot = [[' '], ['(1/…)', 'CopilotAnnotation']]
+      let annot = '(1/…)'
     elseif exists('b:_copilot.cycling')
-      let annot = [[' '], ['(' . (b:_copilot.choice + 1) . '/' . len(b:_copilot.suggestions) . ')', 'CopilotAnnotation']]
+      let annot = '(' . (b:_copilot.choice + 1) . '/' . len(b:_copilot.suggestions) . ')'
     else
-      let annot = []
+      let annot = ''
     endif
-    let data = {'id': 1}
-    let data.virt_text_win_col = virtcol('.') - 1
-    let data.virt_text = [[text[0] . repeat(' ', delete - len(text[0])), s:hlgroup]]
-    if len(text) > 1
-      let data.virt_lines = map(text[1:-1], { _, l -> [[l, s:hlgroup]] })
-      let data.virt_lines[-1] += annot
+    call s:ClearPreview()
+    if s:has_nvim_ghost_text
+      let data = {'id': 1}
+      let data.virt_text_win_col = virtcol('.') - 1
+      let data.virt_text = [[text[0] . repeat(' ', delete - len(text[0])), s:hlgroup]]
+      if len(text) > 1
+        let data.virt_lines = map(text[1:-1], { _, l -> [[l, s:hlgroup]] })
+        if !empty(annot)
+          let data.virt_lines[-1] += [[' '], [annot, s:annot_hlgroup]]
+        endif
+      elseif len(annot)
+        let data.virt_text += [[' '], [annot, s:annot_hlgroup]]
+      endif
+      let data.hl_mode = 'combine'
+      call nvim_buf_set_extmark(0, copilot#NvimNs(), line('.')-1, col('.')-1, data)
     else
-      let data.virt_text += annot
+      call prop_add(line('.'), col('.'), {'type': s:hlgroup, 'text': text[0]})
+      for line in text[1:]
+        call prop_add(line('.'), col('.'), {'type': s:hlgroup, 'text_align': 'below', 'text': line})
+      endfor
+      if !empty(annot)
+        call prop_add(line('.'), col('$'), {'type': s:annot_hlgroup, 'text': ' ' . annot[1][0]})
+      endif
     endif
-    let data.hl_mode = 'combine'
-    call nvim_buf_del_extmark(0, copilot#NvimNs(), 1)
-    call nvim_buf_set_extmark(0, copilot#NvimNs(), line('.')-1, col('.')-1, data)
     if uuid !=# get(s:, 'uuid', '')
       let s:uuid = uuid
       call copilot#Request('notifyShown', {'uuid': uuid})
