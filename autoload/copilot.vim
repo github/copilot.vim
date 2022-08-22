@@ -33,19 +33,6 @@ endif
 
 let s:config_hosts = s:config_root . '/hosts.json'
 
-function! s:JsonBody(response) abort
-  if get(a:response.headers, 'content-type', '') =~# '^application/json\>'
-    let body = a:response.body
-    return json_decode(type(body) == v:t_list ? join(body) : body)
-  else
-    throw 'Copilot: expected application/json but got ' . get(a:response.headers, 'content-type', 'no content type')
-  endif
-endfunction
-
-function! copilot#HttpRequest(url, options, ...) abort
-  return call('copilot#Call', ['httpRequest', extend({'url': a:url, 'timeout': 30000}, a:options)] + a:000)
-endfunction
-
 function! s:StatusNotification(params, ...) abort
   let status = get(a:params, 'status', '')
   if status ==? 'error'
@@ -526,30 +513,6 @@ endfunction
 
 let s:commands = {}
 
-function s:NetworkStatusMessage() abort
-  let err = copilot#Agent().StartupError()
-  if !empty(err)
-    return err
-  endif
-  try
-    let info = copilot#agent#EditorInfo()
-    let response = copilot#HttpRequest('https://copilot-proxy.githubusercontent.com/_ping',
-          \ {'timeout': 5000, 'headers': {
-            \ 'Editor-Version': info.editorInfo.name . '/' . info.editorInfo.version,
-            \ 'Editor-Plugin-Version': info.editorPluginInfo.name . '/' . info.editorPluginInfo.version,
-            \ }})
-    if response.status == 466
-      return "Server error:\n" . substitute(response.body, "\n$", '', '')
-    endif
-  catch /\%( timed out after \| getaddrinfo \|ERR_HTTP2_INVALID_SESSION\)/
-    call copilot#logger#Exception()
-    return 'Server connectivity issue'
-  catch
-    call copilot#logger#Exception()
-  endtry
-  return ''
-endfunction
-
 function! s:EnabledStatusMessage() abort
   let buf_disabled = s:BufferDisabled()
   if !s:has_ghost_text && bufwinid('copilot://') == -1
@@ -605,9 +568,9 @@ function! s:commands.status(opts) abort
     return
   endif
 
-  let network_status = s:NetworkStatusMessage()
-  if !empty(network_status)
-      echo 'Copilot: ' . network_status
+  let startup_error = copilot#Agent().StartupError()
+  if !empty(startup_error)
+      echo 'Copilot: ' . startup_error
       return
   endif
 
@@ -630,9 +593,10 @@ function! s:commands.signout(opts) abort
 endfunction
 
 function! s:commands.setup(opts) abort
-  let network_status = s:NetworkStatusMessage()
-  if !empty(network_status)
-    return 'echoerr ' . string('Copilot: ' . network_status)
+  let startup_error = copilot#Agent().StartupError()
+  if !empty(startup_error)
+      echo 'Copilot: ' . startup_error
+      return
   endif
 
   let browser = copilot#Browser()
