@@ -6,7 +6,7 @@ let g:autoloaded_copilot = 1
 scriptencoding utf-8
 
 let s:has_nvim_ghost_text = has('nvim-0.6') && exists('*nvim_buf_get_mark')
-let s:has_vim_ghost_text = has('patch-9.0.0162') && has('textprop')
+let s:has_vim_ghost_text = has('patch-9.0.0105') && has('textprop')
 let s:has_ghost_text = s:has_nvim_ghost_text || s:has_vim_ghost_text
 
 let s:hlgroup = 'CopilotSuggestion'
