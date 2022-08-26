@@ -5,7 +5,7 @@ let g:autoloaded_copilot_agent = 1
 
 scriptencoding utf-8
 
-let s:plugin_version = '1.5.2'
+let s:plugin_version = '1.5.3'
 
 let s:error_exit = -1
 
@@ -76,7 +76,7 @@ function! s:RequestAwait() dict abort
   throw 'copilot#agent(' . self.error.code . '): ' . self.error.message
 endfunction
 
-function s:RequestAgent() dict abort
+function! s:RequestAgent() dict abort
   return get(s:instances, self.agent_id, v:null)
 endfunction
 
@@ -84,7 +84,7 @@ if !exists('s:id')
   let s:id = 0
 endif
 
-function s:SetUpRequest(agent, id, method, params, ...) abort
+function! s:SetUpRequest(agent, id, method, params, ...) abort
   let request = {
         \ 'agent_id': a:agent.id,
         \ 'id': a:id,
@@ -329,7 +329,7 @@ function! s:LspNotify(method, params) dict abort
   return v:lua.require'_copilot'.rpc_notify(self.id, a:method, a:params)
 endfunction
 
-function copilot#agent#LspHandle(agent_id, response) abort
+function! copilot#agent#LspHandle(agent_id, response) abort
   if !has_key(s:instances, a:agent_id)
     return
   endif
@@ -352,7 +352,7 @@ endfunction
 
 function! s:Command() abort
   if !has('nvim-0.6') && v:version < 802
-    return [v:null, 'Vim version too old']
+    return [v:null, '', 'Vim version too old']
   endif
   let node = get(g:, 'copilot_node_command', '')
   if empty(node)
@@ -362,9 +362,9 @@ function! s:Command() abort
   endif
   if !executable(get(node, 0, ''))
     if get(node, 0, '') ==# 'node'
-      return [v:null, 'Node.js not found in PATH']
+      return [v:null, '', 'Node.js not found in PATH']
     else
-      return [v:null, 'Node.js executable `' . get(node, 0, '') . "' not found"]
+      return [v:null, '', 'Node.js executable `' . get(node, 0, '') . "' not found"]
     endif
   endif
   let out = []
@@ -378,21 +378,21 @@ function! s:Command() abort
   let too_new = major >= 18
   if !get(g:, 'copilot_ignore_node_version')
     if major == 0
-      return [v:null, 'Could not determine Node.js version']
+      return [v:null, node_version, 'Could not determine Node.js version']
     elseif (major < 16 || too_new) && s:IsArmMacOS()
-      return [v:null, 'Node.js version 16.x or 17.x required on Apple Silicon but found ' . node_version]
+      return [v:null, node_version, 'Node.js version 16.x or 17.x required on Apple Silicon but found ' . node_version]
     elseif major < 12 || too_new
-      return [v:null, 'Node.js version 12.x–17.x required but found ' . node_version]
+      return [v:null, node_version, 'Node.js version 12.x–17.x required but found ' . node_version]
     endif
   endif
   let agent = s:root . '/copilot/dist/agent.js'
   if !filereadable(agent)
     let agent = get(g:, 'copilot_agent_command', '')
     if !filereadable(agent)
-      return [v:null, 'Could not find agent.js (bad install?)']
+      return [v:null, node_version, 'Could not find agent.js (bad install?)']
     endif
   endif
-  return [node + [agent], '']
+  return [node + [agent], node_version, '']
 endfunction
 
 function! copilot#agent#EditorInfo() abort
@@ -445,12 +445,13 @@ function! copilot#agent#New(...) abort
         \ 'Cancel': function('s:AgentCancel'),
         \ 'StartupError': function('s:AgentStartupError'),
         \ }
-  let [command, command_error] = s:Command()
+  let [command, node_version, command_error] = s:Command()
   if len(command_error)
     let instance.id = -1
     let instance.startup_error = command_error
     return instance
   endif
+  let instance.node_version = node_version
   if has('nvim')
     call extend(instance, {
         \ 'Close': function('s:LspClose'),

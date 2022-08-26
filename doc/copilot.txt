@@ -16,10 +16,6 @@ COMMANDS                                        *:Copilot*
                                                 *:Copilot_enable*
 :Copilot enable         Re-enable GitHub Copilot after :Copilot disable.
 
-                                                *:Copilot_feedback*
-:Copilot feedback       Open the website for providing GitHub Copilot
-                        feedback.
-
                                                 *:Copilot_setup*
 :Copilot setup          Authenticate and enable GitHub Copilot.
 
@@ -36,6 +32,14 @@ COMMANDS                                        *:Copilot*
                         are also provided for [[ and ]] to jump from solution
                         to solution.  This is the default command if :Copilot
                         is called without an argument.
+
+                                                *:Copilot_version*
+:Copilot version        Show version information.
+
+                                                *:Copilot_feedback*
+:Copilot feedback       Open the website for providing GitHub Copilot
+                        feedback.  Be sure to include |:Copilot_version|
+                        output when reporting a bug.
 
 OPTIONS                                         *copilot-options*
 

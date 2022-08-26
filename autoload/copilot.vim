@@ -692,6 +692,18 @@ function! s:commands.help(opts) abort
   return a:opts.mods . ' help ' . (len(a:opts.arg) ? ':Copilot_' . a:opts.arg : 'copilot')
 endfunction
 
+function! s:commands.version(opts) abort
+  let info = copilot#agent#EditorInfo()
+  echo 'copilot.vim ' .info.editorPluginInfo.version
+  echo info.editorInfo.name . ' ' . info.editorInfo.version
+  if exists('s:agent.node_version')
+    echo 'copilot/dist/agent.js ' . s:agent.Call('getVersion', {}).version
+    echo 'Node.js ' . s:agent.node_version
+  else
+    echo 'copilot/dist/agent.js not running'
+  endif
+endfunction
+
 let s:feedback_url = 'https://github.com/github-community/community/discussions/categories/copilot'
 function! s:commands.feedback(opts) abort
   echo s:feedback_url
