@@ -374,7 +374,7 @@ function! s:UpdatePreview() abort
     else
       call prop_add(line('.'), col('.'), {'type': s:hlgroup, 'text': text[0]})
       for line in text[1:]
-        call prop_add(line('.'), col('.'), {'type': s:hlgroup, 'text_align': 'below', 'text': line})
+        call prop_add(line('.'), 0, {'type': s:hlgroup, 'text_align': 'below', 'text': line})
       endfor
       if !empty(annot)
         call prop_add(line('.'), col('$'), {'type': s:annot_hlgroup, 'text': ' ' . annot[1][0]})
