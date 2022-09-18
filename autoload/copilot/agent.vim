@@ -5,7 +5,7 @@ let g:autoloaded_copilot_agent = 1
 
 scriptencoding utf-8
 
-let s:plugin_version = '1.5.3'
+let s:plugin_version = '1.5.4'
 
 let s:error_exit = -1
 
@@ -395,6 +395,10 @@ function! s:Command() abort
   return [node + [agent], node_version, '']
 endfunction
 
+function! s:UrlDecode(str) abort
+  return substitute(a:str, '%\(\x\x\)', '\=iconv(nr2char("0x".submatch(1)), "utf-8", "latin1")', 'g')
+endfunction
+
 function! copilot#agent#EditorInfo() abort
   if !exists('s:editor_version')
     if has('nvim')
@@ -403,9 +407,23 @@ function! copilot#agent#EditorInfo() abort
       let s:editor_version = (v:version / 100) . '.' . (v:version % 100) . (exists('v:versionlong') ? printf('.%04d', v:versionlong % 1000) : '')
     endif
   endif
-  return {
+  let info = {
         \ 'editorInfo': {'name': has('nvim') ? 'Neovim': 'Vim', 'version': s:editor_version},
         \ 'editorPluginInfo': {'name': 'copilot.vim', 'version': s:plugin_version}}
+  if type(get(g:, 'copilot_proxy')) == v:t_string
+    let proxy = g:copilot_proxy
+  else
+    let proxy = ''
+  endif
+  let match = matchlist(proxy, '\C^\%([^:]\+://\)\=\%(\([^/:#]\+@\)\)\=\%(\([^/:#]\+\)\|\[\([[:xdigit:]:]\+\)\]\)\%(:\(\d\+\)\)\=\%(/\|$\)')
+  if !empty(match)
+    let info.networkProxy = {'host': match[2] . match[3], 'port': empty(match[4]) ? 80 : match[4]}
+    if !empty(match[1])
+      let info.networkProxy.username = s:UrlDecode(matchstr(match[1], '^[^:]*'))
+      let info.networkProxy.password = s:UrlDecode(matchstr(match[1], ':\zs.*'))
+    endif
+  endif
+  return info
 endfunction
 
 function! s:GetCapabilitiesResult(result, agent) abort

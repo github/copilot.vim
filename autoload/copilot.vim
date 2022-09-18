@@ -6,7 +6,7 @@ let g:autoloaded_copilot = 1
 scriptencoding utf-8
 
 let s:has_nvim_ghost_text = has('nvim-0.6') && exists('*nvim_buf_get_mark')
-let s:has_vim_ghost_text = has('patch-9.0.0162') && has('textprop')
+let s:has_vim_ghost_text = has('patch-9.0.0185') && has('textprop')
 let s:has_ghost_text = s:has_nvim_ghost_text || s:has_vim_ghost_text
 
 let s:hlgroup = 'CopilotSuggestion'
@@ -374,10 +374,10 @@ function! s:UpdatePreview() abort
     else
       call prop_add(line('.'), col('.'), {'type': s:hlgroup, 'text': text[0]})
       for line in text[1:]
-        call prop_add(line('.'), col('.'), {'type': s:hlgroup, 'text_align': 'below', 'text': line})
+        call prop_add(line('.'), 0, {'type': s:hlgroup, 'text_align': 'below', 'text': line})
       endfor
       if !empty(annot)
-        call prop_add(line('.'), col('$'), {'type': s:annot_hlgroup, 'text': ' ' . annot[1][0]})
+        call prop_add(line('.'), col('$'), {'type': s:annot_hlgroup, 'text': ' ' . annot})
       endif
     endif
     if uuid !=# get(s:, 'uuid', '')
@@ -655,33 +655,6 @@ function! s:commands.setup(opts) abort
   endif
 
   let user = get(status, 'user', '<unknown>')
-
-  if status.status ==# 'NoTelemetryConsent'
-    let terms_url = "https://github.co/copilot-telemetry-terms"
-    echo "I agree to these telemetry terms as part of the GitHub Copilot technical preview."
-    echo "<" . terms_url . ">"
-    let prompt = '[a]gree/[r]efuse'
-    if len(browser)
-      let prompt .= '/[o]pen in browser'
-    endif
-    while 1
-      let input = input(prompt . '> ')
-      if input =~# '^r'
-        redraw
-        return 'echoerr ' . string('Copilot: Terms must be accepted.')
-      elseif input =~# '^[ob]' && len(browser)
-        if copilot#job#Stream(browser + [terms_url], v:null, v:null) != 0
-          echo "\nCould not open browser."
-        endif
-      elseif input =~# '^a'
-        break
-      else
-        echo "\nUnrecognized response."
-      endif
-    endwhile
-    redraw
-    call copilot#Call('recordTelemetryConsent', {})
-  endif
 
   echo 'Copilot: Authenticated as GitHub user ' . user
 endfunction

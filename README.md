@@ -20,7 +20,7 @@ Terms](https://docs.github.com/en/site-policy/github-terms/github-terms-for-addi
 
 ## Getting started
 
-1.  Install [Neovim][] or the latest patch of [Vim][] (9.0.0162 or newer).
+1.  Install [Neovim][] or the latest patch of [Vim][] (9.0.0185 or newer).
 
 2.  Install [Node.js][] version 16.  (Other versions should work too, except
     Node 18 which isn't supported yet.)

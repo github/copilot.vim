@@ -73,7 +73,14 @@ g:copilot_node_command  Tell Copilot what `node` binary to use with
 >
                         let g:copilot_node_command =
                               \ "~/.nodenv/versions/16.15.0/bin/node"
-
+<
+                                                *g:copilot_proxy*
+g:copilot_proxy         Tell Copilot what proxy server to use.  This is a
+                        string in the format of `hostname:port` or
+                        `username:password@host:port`.
+>
+                        let g:copilot_proxy = 'localhost:3128'
+<
 MAPS                                            *copilot-maps*
 
                                                 *copilot-i_<Tab>*
