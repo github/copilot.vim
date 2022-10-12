@@ -1,3 +1,13 @@
+/*!
+ * buildToken
+ * Builds OAuth token prefix (helper function)
+ *
+ * @name buildToken
+ * @function
+ * @param {GitUrl} obj The parsed Git url object.
+ * @return {String} token prefix
+ */
+
 /** @license URI.js v4.4.1 (c) 2011 Gary Court. License: http://github.com/garycourt/uri-js */
 
 /** @preserve

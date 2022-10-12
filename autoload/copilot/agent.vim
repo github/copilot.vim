@@ -5,7 +5,7 @@ let g:autoloaded_copilot_agent = 1
 
 scriptencoding utf-8
 
-let s:plugin_version = '1.5.4'
+let s:plugin_version = '1.6.0'
 
 let s:error_exit = -1
 
@@ -385,9 +385,9 @@ function! s:Command() abort
       return [v:null, node_version, 'Node.js version 12.x–17.x required but found ' . node_version]
     endif
   endif
-  let agent = s:root . '/copilot/dist/agent.js'
-  if !filereadable(agent)
-    let agent = get(g:, 'copilot_agent_command', '')
+  let agent = get(g:, 'copilot_agent_command', '')
+  if empty(agent) || !filereadable(agent)
+    let agent = s:root . '/copilot/dist/agent.js'
     if !filereadable(agent)
       return [v:null, node_version, 'Could not find agent.js (bad install?)']
     endif
@@ -417,7 +417,7 @@ function! copilot#agent#EditorInfo() abort
   endif
   let match = matchlist(proxy, '\C^\%([^:]\+://\)\=\%(\([^/:#]\+@\)\)\=\%(\([^/:#]\+\)\|\[\([[:xdigit:]:]\+\)\]\)\%(:\(\d\+\)\)\=\%(/\|$\)')
   if !empty(match)
-    let info.networkProxy = {'host': match[2] . match[3], 'port': empty(match[4]) ? 80 : match[4]}
+    let info.networkProxy = {'host': match[2] . match[3], 'port': empty(match[4]) ? 80 : +match[4]}
     if !empty(match[1])
       let info.networkProxy.username = s:UrlDecode(matchstr(match[1], '^[^:]*'))
       let info.networkProxy.password = s:UrlDecode(matchstr(match[1], ':\zs.*'))
@@ -428,7 +428,7 @@ endfunction
 
 function! s:GetCapabilitiesResult(result, agent) abort
   let a:agent.capabilities = get(a:result, 'capabilities', {})
-  call a:agent.Request('setEditorInfo', copilot#agent#EditorInfo())
+  call a:agent.Request('setEditorInfo', extend({'editorConfiguration': a:agent.editorConfiguration}, copilot#agent#EditorInfo()))
 endfunction
 
 function! s:GetCapabilitiesError(error, agent) abort
@@ -456,6 +456,7 @@ function! copilot#agent#New(...) abort
   let instance = {'requests': {},
         \ 'methods': get(opts, 'methods', {}),
         \ 'notifications': get(opts, 'notifications', {}),
+        \ 'editorConfiguration': get(opts, 'editorConfiguration', {}),
         \ 'Close': function('s:AgentClose'),
         \ 'Notify': function('s:AgentNotify'),
         \ 'Request': function('s:AgentRequest'),

@@ -12,12 +12,22 @@ function copilot#doc#UTF16Width(str) abort
 endfunction
 
 let s:language_normalization_map = {
+      \ "bash":            "shellscript",
+      \ "bst":             "bibtex",
+      \ "cs":              "csharp",
+      \ "cuda":            "cuda-cpp",
+      \ "dosbatch":        "bat",
+      \ "dosini":          "ini",
+      \ "gitcommit":       "git-commit",
+      \ "gitrebase":       "git-rebase",
+      \ "make":            "makefile",
+      \ "objc":            "objective-c",
+      \ "objcpp":          "objective-cpp",
+      \ "ps1":             "powershell",
+      \ "raku":            "perl6",
+      \ "sh":              "shellscript",
       \ "text":            "plaintext",
-      \ "javascriptreact": "javascript",
-      \ "jsx":             "javascript",
-      \ "typescriptreact": "typescript",
       \ }
-
 function copilot#doc#LanguageForFileType(filetype) abort
   let filetype = substitute(a:filetype, '\..*', '', '')
   return get(s:language_normalization_map, empty(filetype) ? "text" : filetype, filetype)

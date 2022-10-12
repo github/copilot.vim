@@ -19,19 +19,16 @@ if s:has_vim_ghost_text && empty(prop_type_get(s:annot_hlgroup))
   call prop_type_add(s:annot_hlgroup, {'highlight': s:annot_hlgroup})
 endif
 
-if len($XDG_CONFIG_HOME)
-  let s:config_root = $XDG_CONFIG_HOME
-elseif has('win32')
-  let s:config_root = expand('~/AppData/Local')
-else
-  let s:config_root = expand('~/.config')
-endif
-let s:config_root .= '/github-copilot'
-if !isdirectory(s:config_root)
-  call mkdir(s:config_root, 'p', 0700)
-endif
-
-let s:config_hosts = s:config_root . '/hosts.json'
+function! s:EditorConfiguration() abort
+  let filetypes = copy(s:filetype_defaults)
+  if type(get(g:, 'copilot_filetypes')) == v:t_dict
+    call extend(filetypes, g:copilot_filetypes)
+  endif
+  return {
+        \ 'enableAutoCompletions': !empty(get(g:, 'copilot_enabled', 1)),
+        \ 'disabledLanguages': sort(keys(filter(filetypes, { k, v -> empty(v) }))),
+        \ }
+endfunction
 
 function! s:StatusNotification(params, ...) abort
   let status = get(a:params, 'status', '')
@@ -46,15 +43,20 @@ function! copilot#Init(...) abort
   call timer_start(0, { _ -> s:Start() })
 endfunction
 
+function! s:Running() abort
+  return exists('s:agent.job') || exists('s:agent.client_id')
+endfunction
+
 function! s:Start() abort
-  if exists('s:agent.job') || exists('s:agent.client_id')
+  if s:Running()
     return
   endif
   let s:agent = copilot#agent#New({'notifications': {
         \ 'statusNotification': function('s:StatusNotification'),
         \ 'PanelSolution': function('copilot#panel#Solution'),
         \ 'PanelSolutionsDone': function('copilot#panel#SolutionsDone'),
-        \ }})
+        \ },
+        \ 'editorConfiguration' : s:EditorConfiguration()})
 endfunction
 
 function! s:Stop() abort
@@ -82,20 +84,6 @@ endfunction
 function! copilot#Notify(method, params, ...) abort
   let agent = copilot#Agent()
   return call(agent.Notify, [a:method, a:params] + a:000)
-endfunction
-
-function! s:ReadTerms() abort
-  let file = s:config_root . '/terms.json'
-  try
-    if filereadable(file)
-      let terms = json_decode(join(readfile(file)))
-      if type(terms) == v:t_dict
-        return terms
-      endif
-    endif
-  catch
-  endtry
-  return {}
 endfunction
 
 function! copilot#NvimNs() abort
@@ -137,14 +125,14 @@ let s:filetype_defaults = {
 
 function! s:BufferDisabled() abort
   if exists('b:copilot_disabled')
-    return b:copilot_disabled ? 3 : 0
+    return empty(b:copilot_disabled) ? 0 : 3
   endif
   if exists('b:copilot_enabled')
-    return b:copilot_enabled ? 0 : 4
+    return empty(b:copilot_enabled) ? 4 : 0
   endif
   let short = empty(&l:filetype) ? '.' : split(&l:filetype, '\.', 1)[0]
   let config = get(g:, 'copilot_filetypes', {})
-  if has_key(config, &l:filetype)
+  if type(config) == v:t_dict && has_key(config, &l:filetype)
     return empty(config[&l:filetype])
   elseif has_key(config, short)
     return empty(config[short])
@@ -372,6 +360,11 @@ function! s:UpdatePreview() abort
       let data.hl_mode = 'combine'
       call nvim_buf_set_extmark(0, copilot#NvimNs(), line('.')-1, col('.')-1, data)
     else
+      let trail = strpart(getline('.'), col('.') - 1)
+      while !empty(trail) && trail[-1] ==# text[0][-1]
+        let trail = trail[:-2]
+        let text[0] = text[0][:-2]
+      endwhile
       call prop_add(line('.'), col('.'), {'type': s:hlgroup, 'text': text[0]})
       for line in text[1:]
         call prop_add(line('.'), 0, {'type': s:hlgroup, 'text_align': 'below', 'text': line})
@@ -398,21 +391,22 @@ function! s:HandleTriggerResult(result) abort
   call s:UpdatePreview()
 endfunction
 
+function! copilot#Suggest() abort
+  try
+    call copilot#Complete(function('s:HandleTriggerResult'), function('s:HandleTriggerResult'))
+  catch
+    call copilot#logger#Exception()
+  endtry
+  return ''
+endfunction
+
 function! s:Trigger(bufnr, timer) abort
   let timer = get(g:, '_copilot_timer', -1)
   unlet! g:_copilot_timer
   if a:bufnr !=# bufnr('') || a:timer isnot# timer || mode() !=# 'i'
     return
   endif
-  if exists('s:auth_request')
-    let g:_copilot_timer = timer_start(100, function('s:Trigger', [a:bufnr]))
-    return
-  endif
-  try
-    call copilot#Complete(function('s:HandleTriggerResult'), function('s:HandleTriggerResult'))
-  catch
-    call copilot#logger#Exception()
-  endtry
+  return copilot#Suggest()
 endfunction
 
 function! copilot#IsMapped() abort
@@ -579,6 +573,12 @@ function! s:commands.status(opts) abort
     return
   endif
 
+  let status = copilot#Call('checkStatus', {})
+  if status.status ==# 'NotAuthorized'
+    echo 'Copilot: Not authorized'
+    return
+  endif
+
   echo 'Copilot: Enabled and online'
 endfunction
 
@@ -610,8 +610,10 @@ function! s:commands.setup(opts) abort
 
   if has_key(data, 'verificationUri')
     let uri = data.verificationUri
-    let @+ = data.userCode
-    let @* = data.userCode
+    if has('clipboard')
+      let @+ = data.userCode
+      let @* = data.userCode
+    endif
     echo "First copy your one-time code: " . data.userCode
     try
       if len(&mouse)
@@ -677,6 +679,16 @@ function! s:commands.version(opts) abort
   endif
 endfunction
 
+function! s:UpdateEditorConfiguration() abort
+  try
+    if s:Running()
+      call copilot#Notify('notifyChangeConfiguration', {'settings': s:EditorConfiguration()})
+    endif
+  catch
+    call copilot#logger#Exception()
+  endtry
+endfunction
+
 let s:feedback_url = 'https://github.com/github-community/community/discussions/categories/copilot'
 function! s:commands.feedback(opts) abort
   echo s:feedback_url
@@ -697,10 +709,12 @@ endfunction
 
 function! s:commands.disable(opts) abort
   let g:copilot_enabled = 0
+  call s:UpdateEditorConfiguration()
 endfunction
 
 function! s:commands.enable(opts) abort
   let g:copilot_enabled = 1
+  call s:UpdateEditorConfiguration()
 endfunction
 
 function! s:commands.panel(opts) abort

@@ -113,6 +113,10 @@ Other Maps ~
 <M-[>                   Cycle to the previous suggestion.
 <Plug>(copilot-previous)
 
+                                                *copilot-i_ALT-\*
+<M-\>                   Explicitly request a suggestion, even if Copilot
+<Plug>(copilot-suggest) is disabled.
+
 SYNTAX HIGHLIGHTING                             *copilot-highlighting*
 
 Inline suggestions are highlighted using the CopilotSuggestion group,
