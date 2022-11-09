@@ -5,7 +5,7 @@ let g:autoloaded_copilot_agent = 1
 
 scriptencoding utf-8
 
-let s:plugin_version = '1.6.0'
+let s:plugin_version = '1.6.1'
 
 let s:error_exit = -1
 
@@ -166,11 +166,7 @@ endfunction
 
 function! s:OnMessage(agent, body, ...) abort
   call copilot#logger#Trace({ -> '<-- ' . a:body})
-  try
-    let response = json_decode(a:body)
-  catch
-    return copilot#logger#Exception()
-  endtry
+  let response = json_decode(a:body)
   if type(response) != v:t_dict
     return
   endif
@@ -314,6 +310,7 @@ function! s:LspRequest(method, params, ...) dict abort
   endif
   if has_key(self, 'client_id')
     call copilot#agent#LspExit(self.client_id, -1, -1)
+    unlet! self.client_id
   endif
   throw 'copilot#agent: LSP client not available'
 endfunction
@@ -371,7 +368,7 @@ function! s:Command() abort
   let err = []
   let status = copilot#job#Stream(node + ['--version'], function('add', [out]), function('add', [err]))
   if status != 0
-    return [v:null, 'Node.js exited with status ' . status]
+    return [v:null, '', 'Node.js exited with status ' . status]
   endif
   let node_version = matchstr(join(out, ''), '^v\zs\d\+\.[^[:space:]]*')
   let major = str2nr(node_version)
@@ -428,7 +425,9 @@ endfunction
 
 function! s:GetCapabilitiesResult(result, agent) abort
   let a:agent.capabilities = get(a:result, 'capabilities', {})
-  call a:agent.Request('setEditorInfo', extend({'editorConfiguration': a:agent.editorConfiguration}, copilot#agent#EditorInfo()))
+  let info = deepcopy(copilot#agent#EditorInfo())
+  let info.editorInfo.version .= ' + Node.js ' . a:agent.node_version
+  call a:agent.Request('setEditorInfo', extend({'editorConfiguration': a:agent.editorConfiguration}, info))
 endfunction
 
 function! s:GetCapabilitiesError(error, agent) abort

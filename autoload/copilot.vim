@@ -71,6 +71,14 @@ function! copilot#Agent() abort
   return s:agent
 endfunction
 
+function! copilot#RunningAgent() abort
+  if s:Running()
+    return s:agent
+  else
+    return v:null
+  endif
+endfunction
+
 function! copilot#Request(method, params, ...) abort
   let agent = copilot#Agent()
   return call(agent.Request, [a:method, a:params] + a:000)

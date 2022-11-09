@@ -53,5 +53,17 @@ endfunction
 function! copilot#logger#Exception() abort
   if !empty(v:exception)
     call copilot#logger#Error('Exception: ' . v:exception . ' @ ' . v:throwpoint)
+    let agent = copilot#RunningAgent()
+    if !empty(agent)
+      if v:throwpoint =~# '[\/]'
+        let throwpoint = '[redacted]'
+      else
+        let throwpoint = v:throwpoint
+      endif
+      call agent.Request('telemetry/exception', {
+            \ 'origin': 'copilot.vim',
+            \ 'stacktrace': v:exception . ' @ ' . throwpoint,
+            \ })
+    endif
   endif
 endfunction
