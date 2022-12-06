@@ -8,7 +8,7 @@ method names into coding suggestions across dozens of languages.
 Copilot.vim is a Vim/Neovim plugin for GitHub Copilot.
 
 To learn more, visit
-[github.com/features/copilot](https://github.com/features/copilot).
+[https://github.com/features/copilot](https://github.com/features/copilot).
 
 ## Subscription
 
@@ -22,8 +22,7 @@ Terms](https://docs.github.com/en/site-policy/github-terms/github-terms-for-addi
 
 1.  Install [Neovim][] or the latest patch of [Vim][] (9.0.0185 or newer).
 
-2.  Install [Node.js][] version 16.  (Other versions should work too, except
-    Node 18 which isn't supported yet.)
+2.  Install [Node.js][].
 
 3.  Install `github/copilot.vim` using vim-plug, packer.nvim, or any other
     plugin manager.  Or to install manually, run one of the following

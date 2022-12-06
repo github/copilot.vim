@@ -5,7 +5,7 @@ let g:autoloaded_copilot_agent = 1
 
 scriptencoding utf-8
 
-let s:plugin_version = '1.6.1'
+let s:plugin_version = '1.7.0'
 
 let s:error_exit = -1
 
@@ -310,7 +310,6 @@ function! s:LspRequest(method, params, ...) dict abort
   endif
   if has_key(self, 'client_id')
     call copilot#agent#LspExit(self.client_id, -1, -1)
-    unlet! self.client_id
   endif
   throw 'copilot#agent: LSP client not available'
 endfunction
@@ -372,14 +371,13 @@ function! s:Command() abort
   endif
   let node_version = matchstr(join(out, ''), '^v\zs\d\+\.[^[:space:]]*')
   let major = str2nr(node_version)
-  let too_new = major >= 18
   if !get(g:, 'copilot_ignore_node_version')
     if major == 0
       return [v:null, node_version, 'Could not determine Node.js version']
-    elseif (major < 16 || too_new) && s:IsArmMacOS()
-      return [v:null, node_version, 'Node.js version 16.x or 17.x required on Apple Silicon but found ' . node_version]
-    elseif major < 12 || too_new
-      return [v:null, node_version, 'Node.js version 12.x–17.x required but found ' . node_version]
+    elseif major < 16 && s:IsArmMacOS()
+      return [v:null, node_version, 'Node.js version 16.x or newer required but found ' . node_version]
+    elseif major < 14
+      return [v:null, node_version, 'Node.js version 14.x or newer required but found ' . node_version]
     endif
   endif
   let agent = get(g:, 'copilot_agent_command', '')
