@@ -82,11 +82,13 @@ function! copilot#doc#Get() abort
   let col_byte = col('.') - (mode() =~# '^[iR]' || empty(line))
   let col_utf16 = copilot#doc#UTF16Width(strpart(line, 0, col_byte))
   let doc.position = {'line': line('.') - 1, 'character': col_utf16}
-  let lines = getline(1, '$')
-  if &eol
-    call add(lines, "")
+  if !has('nvim')
+    let lines = getline(1, '$')
+    if &eol
+      call add(lines, "")
+    endif
+    let doc.source = join(lines, "\n")
   endif
-  let doc.source = join(lines, "\n")
   return doc
 endfunction
 

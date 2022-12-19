@@ -5,7 +5,7 @@ let g:autoloaded_copilot_agent = 1
 
 scriptencoding utf-8
 
-let s:plugin_version = '1.7.0'
+let s:plugin_version = '1.8.0'
 
 let s:error_exit = -1
 
@@ -332,22 +332,8 @@ function! copilot#agent#LspHandle(agent_id, response) abort
   call s:OnResponse(s:instances[a:agent_id], a:response)
 endfunction
 
-unlet! s:is_arm_macos
-function! s:IsArmMacOS() abort
-  if exists('s:is_arm_macos')
-    return s:is_arm_macos
-  elseif has('win32') || !isdirectory('/private')
-    let s:is_arm_macos = 0
-  else
-    let out = []
-    call copilot#job#Stream(['uname', '-s', '-p'], function('add', [out]), v:null)
-    let s:is_arm_macos = join(out, '') =~# '^Darwin arm'
-  endif
-  return s:is_arm_macos
-endfunction
-
 function! s:Command() abort
-  if !has('nvim-0.6') && v:version < 802
+  if !has('nvim-0.6') && v:version < 900
     return [v:null, '', 'Vim version too old']
   endif
   let node = get(g:, 'copilot_node_command', '')
@@ -374,10 +360,8 @@ function! s:Command() abort
   if !get(g:, 'copilot_ignore_node_version')
     if major == 0
       return [v:null, node_version, 'Could not determine Node.js version']
-    elseif major < 16 && s:IsArmMacOS()
+    elseif major < 16
       return [v:null, node_version, 'Node.js version 16.x or newer required but found ' . node_version]
-    elseif major < 14
-      return [v:null, node_version, 'Node.js version 14.x or newer required but found ' . node_version]
     endif
   endif
   let agent = get(g:, 'copilot_agent_command', '')
@@ -410,9 +394,16 @@ function! copilot#agent#EditorInfo() abort
   else
     let proxy = ''
   endif
-  let match = matchlist(proxy, '\C^\%([^:]\+://\)\=\%(\([^/:#]\+@\)\)\=\%(\([^/:#]\+\)\|\[\([[:xdigit:]:]\+\)\]\)\%(:\(\d\+\)\)\=\%(/\|$\)')
+  let match = matchlist(proxy, '\c^\%([^:]\+://\)\=\%(\([^/:#]\+@\)\)\=\%(\([^/:#]\+\)\|\[\([[:xdigit:]:]\+\)\]\)\%(:\(\d\+\)\)\=\%(/\|$\|?strict_\=ssl=\(.*\)\)')
   if !empty(match)
     let info.networkProxy = {'host': match[2] . match[3], 'port': empty(match[4]) ? 80 : +match[4]}
+    if match[5] =~? '^[0f]'
+      let info.networkProxy.rejectUnauthorized = v:false
+    elseif match[5] =~? '^[1t]'
+      let info.networkProxy.rejectUnauthorized = v:true
+    elseif exists('g:copilot_proxy_strict_ssl')
+      let info.networkProxy.rejectUnauthorized = empty(g:copilot_proxy_strict_ssl) ? v:false : v:true
+    endif
     if !empty(match[1])
       let info.networkProxy.username = s:UrlDecode(matchstr(match[1], '^[^:]*'))
       let info.networkProxy.password = s:UrlDecode(matchstr(match[1], ':\zs.*'))

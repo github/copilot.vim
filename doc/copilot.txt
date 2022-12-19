@@ -81,6 +81,15 @@ g:copilot_proxy         Tell Copilot what proxy server to use.  This is a
 >
                         let g:copilot_proxy = 'localhost:3128'
 <
+                                                *g:copilot_proxy_strict_ssl*
+g:copilot_proxy_strict_ssl
+                        Corporate proxies sometimes use a man-in-the-middle
+                        SSL certificate which is incompatible with GitHub
+                        Copilot.  To work around this, SSL certificate
+                        verification can be disabled:
+>
+                        let g:copilot_proxy_strict_ssl = v:false
+<
 MAPS                                            *copilot-maps*
 
                                                 *copilot-i_<Tab>*
