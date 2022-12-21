@@ -64,9 +64,6 @@ function! s:NvimCallback(cb, job, data, type) dict abort
 endfunction
 
 function! s:NvimExitCallback(out_cb, err_cb, exit_cb, job, data, type) dict abort
-  if len(self.stdout[0])
-    call a:out_cb(substitute(self.stdout[0], "\r$", '', ''))
-  endif
   if len(self.stderr[0])
     call a:err_cb(substitute(self.stderr[0], "\r$", '', ''))
   endif
@@ -78,9 +75,12 @@ function! copilot#job#Stream(argv, out_cb, err_cb, ...) abort
   let ExitCb = function(a:0 && !empty(a:1) ? a:1 : { e -> add(exit_status, e) }, a:000[2:-1])
   let OutCb = function(empty(a:out_cb) ? 'copilot#job#Nop' : a:out_cb, a:000[2:-1])
   let ErrCb = function(empty(a:err_cb) ? 'copilot#job#Nop' : a:err_cb, a:000[2:-1])
+  let state = {'headers': {}, 'mode': 'headers', 'buffer': ''}
   if exists('*job_start')
     let result = {}
     let job = job_start(a:argv, {
+          \ 'cwd': expand("~"),
+          \ 'out_mode': 'raw',
           \ 'out_cb': { j, d -> OutCb(d) },
           \ 'err_cb': { j, d -> ErrCb(d) },
           \ 'exit_cb': function('s:VimExitCallback', [result, ExitCb]),
@@ -88,9 +88,9 @@ function! copilot#job#Stream(argv, out_cb, err_cb, ...) abort
           \ })
   else
     let jopts = {
-          \ 'stdout': [''],
+          \ 'cwd': expand("~"),
           \ 'stderr': [''],
-          \ 'on_stdout': function('s:NvimCallback', [OutCb]),
+          \ 'on_stdout': { j, d, t -> OutCb(join(d, "\n")) },
           \ 'on_stderr': function('s:NvimCallback', [ErrCb]),
           \ 'on_exit': function('s:NvimExitCallback', [OutCb, ErrCb, ExitCb])}
     let job = jobstart(a:argv, jopts)

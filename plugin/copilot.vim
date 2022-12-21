@@ -7,7 +7,7 @@ scriptencoding utf-8
 
 command! -bang -nargs=? -range=-1 -complete=customlist,copilot#CommandComplete Copilot exe copilot#Command(<line1>, <count>, +"<range>", <bang>0, "<mods>", <q-args>)
 
-if v:version < 800
+if v:version < 800 || !exists('##CompleteChanged')
   finish
 endif
 
@@ -17,14 +17,15 @@ function! s:ColorScheme() abort
   else
     hi def CopilotSuggestion guifg=#808080 ctermfg=8
   endif
+  hi def link CopilotAnnotation Normal
 endfunction
 
-function! s:Map() abort
+function! s:MapTab() abort
   if get(g:, 'copilot_no_tab_map') || get(g:, 'copilot_no_maps')
     return
   endif
   let tab_map = maparg('<Tab>', 'i', 0, 1)
-  if empty(tab_map)
+  if !has_key(tab_map, 'rhs')
     imap <script><silent><nowait><expr> <Tab> copilot#Accept()
   elseif tab_map.rhs !~# 'copilot'
     if tab_map.expr
@@ -58,13 +59,32 @@ augroup github_copilot
   autocmd CursorMovedI         * call s:Event('CursorMovedI')
   autocmd CompleteChanged      * call s:Event('CompleteChanged')
   autocmd ColorScheme,VimEnter * call s:ColorScheme()
-  autocmd VimEnter             * call s:Map()
+  autocmd VimEnter             * call s:MapTab()
   autocmd BufReadCmd copilot://* setlocal buftype=nofile bufhidden=wipe nobuflisted readonly nomodifiable
 augroup END
 
 call s:ColorScheme()
-call s:Map()
-call timer_start(0, { _ -> copilot#Init() })
+call s:MapTab()
+if !get(g:, 'copilot_no_maps')
+  imap <Plug>(copilot-dismiss)     <Cmd>call copilot#Dismiss()<CR>
+  if empty(mapcheck('<C-]>', 'i'))
+    imap <silent><script><nowait><expr> <C-]> copilot#Dismiss() . "\<C-]>"
+  endif
+  imap <Plug>(copilot-next)     <Cmd>call copilot#Next()<CR>
+  imap <Plug>(copilot-previous) <Cmd>call copilot#Previous()<CR>
+  imap <Plug>(copilot-suggest)  <Cmd>call copilot#Suggest()<CR>
+  if empty(mapcheck('<M-]>', 'i'))
+    imap <M-]> <Plug>(copilot-next)
+  endif
+  if empty(mapcheck('<M-[>', 'i'))
+    imap <M-[> <Plug>(copilot-previous)
+  endif
+  if empty(mapcheck('<M-Bslash>', 'i'))
+    imap <M-Bslash> <Plug>(copilot-suggest)
+  endif
+endif
+
+call copilot#Init()
 
 let s:dir = expand('<sfile>:h:h')
 if getftime(s:dir . '/doc/copilot.txt') > getftime(s:dir . '/doc/tags')
