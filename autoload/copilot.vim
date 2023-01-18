@@ -25,8 +25,8 @@ function! s:EditorConfiguration() abort
     call extend(filetypes, g:copilot_filetypes)
   endif
   return {
-        \ 'enableAutoCompletions': !empty(get(g:, 'copilot_enabled', 1)),
-        \ 'disabledLanguages': sort(keys(filter(filetypes, { k, v -> empty(v) }))),
+        \ 'enableAutoCompletions': empty(get(g:, 'copilot_enabled', 1)) ? v:false : v:true,
+        \ 'disabledLanguages': sort(keys(filter(filetypes, { k, v -> empty(v) ? v:true : v:false }))),
         \ }
 endfunction
 

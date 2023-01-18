@@ -5,7 +5,7 @@ let g:autoloaded_copilot_agent = 1
 
 scriptencoding utf-8
 
-let s:plugin_version = '1.8.0'
+let s:plugin_version = '1.8.1'
 
 let s:error_exit = -1
 
@@ -117,10 +117,69 @@ function! s:SetUpRequest(agent, id, method, params, ...) abort
   return request
 endfunction
 
+function! s:UrlEncode(str) abort
+  return substitute(iconv(a:str, 'latin1', 'utf-8'),'[^A-Za-z0-9._~!$&''()*+,;=:@/-]','\="%".printf("%02X",char2nr(submatch(0)))','g')
+endfunction
+
+let s:slash = exists('+shellslash') ? '\' : '/'
+function! s:UriFromBufnr(bufnr) abort
+  let absolute = tr(bufname(a:bufnr), s:slash, '/')
+  if absolute !~# '^\a\+:\|^/\|^$' && getbufvar(a:bufnr, 'buftype') =~# '^\%(nowrite\)\=$'
+    let absolute = substitute(tr(getcwd(), s:slash, '/'), '/\=$', '/', '') . absolute
+  endif
+  if has('win32') && absolute =~# '^\a://\@!'
+    return 'file:///' . strpart(absolute, 0, 2) . s:UrlEncode(strpart(absolute, 2))
+  elseif absolute =~# '^/'
+    return 'file://' . s:UrlEncode(absolute)
+  elseif absolute =~# '^\a[[:alnum:].+-]*:\|^$'
+    return absolute
+  else
+    return ''
+  endif
+endfunction
+
+function! s:BufferText(bufnr) abort
+  return join(getbufline(a:bufnr, 1, '$'), "\n") . "\n"
+endfunction
+
 function! s:AgentRequest(method, params, ...) dict abort
   let s:id += 1
-  let request = {'method': a:method, 'params': a:params, 'id': s:id}
-  call s:Send(self, request)
+  let request = {'method': a:method, 'params': deepcopy(a:params), 'id': s:id}
+  for doc in filter([get(request.params, 'doc', {}), get(request.params, 'textDocument',{})], 'type(get(v:val, "uri", "")) == v:t_number')
+    let bufnr = doc.uri
+    let doc.uri = s:UriFromBufnr(doc.uri)
+    let uri = doc.uri
+    let languageId = copilot#doc#LanguageForFileType(getbufvar(bufnr, '&filetype'))
+    let doc_version = getbufvar(bufnr, 'changedtick')
+    if has_key(self.open_buffers, bufnr) && (
+          \ self.open_buffers[bufnr].uri !=# doc.uri ||
+          \ self.open_buffers[bufnr].languageId !=# languageId)
+      call remove(self.open_buffers, bufnr)
+      sleep 1m
+    endif
+    if !has_key(self.open_buffers, bufnr)
+      let td_item = {
+            \ 'uri': doc.uri,
+            \ 'version': doc_version,
+            \ 'languageId': languageId,
+            \ 'text': s:BufferText(bufnr)}
+      call self.Notify('textDocument/didOpen', {'textDocument': td_item})
+      let self.open_buffers[bufnr] = {
+            \ 'uri': doc.uri,
+            \ 'version': doc_version,
+            \ 'languageId': languageId}
+    else
+      let vtd_id = {
+            \ 'uri': doc.uri,
+            \ 'version': getbufvar(bufnr, 'changedtick')}
+      call self.Notify('textDocument/didChange', {
+            \ 'textDocument': vtd_id,
+            \ 'contentChanges': [{'text': s:BufferText(bufnr)}]})
+      let self.open_buffers[bufnr].version = version
+    endif
+    let doc.version = doc_version
+  endfor
+  call timer_start(0, { _ -> s:Send(self, request) })
   return call('s:SetUpRequest', [self, s:id, a:method, a:params] + a:000)
 endfunction
 
@@ -468,6 +527,7 @@ function! copilot#agent#New(...) abort
     let instance.id = instance.client_id
   else
     let state = {'headers': {}, 'mode': 'headers', 'buffer': ''}
+    let instance.open_buffers = {}
     let instance.job = copilot#job#Stream(command,
           \ function('s:OnOut', [instance, state]),
           \ function('s:OnErr', [instance]),
@@ -507,3 +567,23 @@ function! copilot#agent#Error(request, callback) abort
     let a:request.waiting[timer_start(0, function('s:Callback', [a:request, 'error', a:callback]))] = 1
   endif
 endfunction
+
+function! s:CloseBuffer(bufnr) abort
+  for instance in values(s:instances)
+    try
+      if has_key(instance, 'job') && has_key(instance.open_buffers, a:bufnr)
+        let buffer = remove(instance.open_buffers, a:bufnr)
+        call instance.Notify('textDocument/didClose', {'textDocument': {'uri': buffer.uri}})
+      endif
+    catch
+      call copilot#logger#Exception()
+    endtry
+  endfor
+endfunction
+
+augroup copilot_agent
+  autocmd!
+  if !has('nvim')
+    autocmd BufUnload * call s:CloseBuffer(+expand('<abuf>'))
+  endif
+augroup END
