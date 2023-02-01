@@ -26,7 +26,7 @@ function! s:EditorConfiguration() abort
   endif
   return {
         \ 'enableAutoCompletions': empty(get(g:, 'copilot_enabled', 1)) ? v:false : v:true,
-        \ 'disabledLanguages': sort(keys(filter(filetypes, { k, v -> empty(v) ? v:true : v:false }))),
+        \ 'disabledLanguages': map(sort(keys(filter(filetypes, { k, v -> empty(v) ? v:true : v:false }))), { _, v -> {'languageId': v}}),
         \ }
 endfunction
 
@@ -207,7 +207,7 @@ function! s:SuggestionTextWithAdjustments() abort
         return [unindented, len(typed) - len(leading), strchars(delete), uuid]
       endif
     elseif typed ==# strpart(choice.text, 0, offset)
-      return [strpart(choice.text, offset), 0, strchars(delete), uuid]
+      return [strpart(choice.text . delete, offset), 0, strchars(delete), uuid]
     endif
   catch
     call copilot#logger#Exception()
