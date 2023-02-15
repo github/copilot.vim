@@ -5,7 +5,7 @@ let g:autoloaded_copilot_agent = 1
 
 scriptencoding utf-8
 
-let s:plugin_version = '1.8.2'
+let s:plugin_version = '1.8.3'
 
 let s:error_exit = -1
 

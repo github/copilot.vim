@@ -19,6 +19,14 @@ if s:has_vim_ghost_text && empty(prop_type_get(s:annot_hlgroup))
   call prop_type_add(s:annot_hlgroup, {'highlight': s:annot_hlgroup})
 endif
 
+function! s:Echo(msg) abort
+  if has('nvim') && &cmdheight == 0
+    call v:lua.vim.notify(a:msg, v:null, {'title': 'GitHub Copilot'})
+  else
+    echo a:msg
+  endif
+endfunction
+
 function! s:EditorConfiguration() abort
   let filetypes = copy(s:filetype_defaults)
   if type(get(g:, 'copilot_filetypes')) == v:t_dict
@@ -26,7 +34,7 @@ function! s:EditorConfiguration() abort
   endif
   return {
         \ 'enableAutoCompletions': empty(get(g:, 'copilot_enabled', 1)) ? v:false : v:true,
-        \ 'disabledLanguages': map(sort(keys(filter(filetypes, { k, v -> empty(v) ? v:true : v:false }))), { _, v -> {'languageId': v}}),
+        \ 'disabledLanguages': map(sort(keys(filter(filetypes, { k, v -> empty(v) }))), { _, v -> {'languageId': v}}),
         \ }
 endfunction
 
@@ -199,6 +207,11 @@ function! s:SuggestionTextWithAdjustments() abort
     endif
     let typed = strpart(line, 0, offset)
     let delete = strpart(line, offset)
+    if choice.range.end.line == line('.') - 1 && choice.range.end.character < copilot#doc#UTF16Width(line)
+      let append = delete
+    else
+      let append = ''
+    endif
     let uuid = get(choice, 'uuid', '')
     if typed =~# '^\s*$'
       let leading = matchstr(choice.text, '^\s\+')
@@ -207,7 +220,7 @@ function! s:SuggestionTextWithAdjustments() abort
         return [unindented, len(typed) - len(leading), strchars(delete), uuid]
       endif
     elseif typed ==# strpart(choice.text, 0, offset)
-      return [strpart(choice.text . delete, offset), 0, strchars(delete), uuid]
+      return [strpart(choice.text . append, offset), 0, strchars(delete), uuid]
     endif
   catch
     call copilot#logger#Exception()
@@ -439,6 +452,9 @@ endfunction
 function! copilot#OnInsertEnter() abort
   let s:is_mapped = copilot#IsMapped()
   let s:dest = bufnr('^copilot://$')
+  if s:dest > 0 && bufwinnr(s:dest) < 0
+    let s:dest = -1
+  endif
   if s:dest < 0 && !s:has_ghost_text
     let s:dest = 0
   endif
@@ -622,16 +638,16 @@ function! s:commands.setup(opts) abort
       let @+ = data.userCode
       let @* = data.userCode
     endif
-    echo "First copy your one-time code: " . data.userCode
+    call s:Echo("First copy your one-time code: " . data.userCode)
     try
       if len(&mouse)
         let mouse = &mouse
         set mouse=
       endif
       if get(a:opts, 'bang')
-        echo "In your browser, visit " . uri
+        call s:Echo("In your browser, visit " . uri)
       elseif len(browser)
-        echo "Press ENTER to open GitHub in your browser"
+        call s:Echo("Press ENTER to open GitHub in your browser")
         let c = getchar()
         while c isnot# 13 && c isnot# 10 && c isnot# 0
           let c = getchar()
@@ -643,14 +659,14 @@ function! s:commands.setup(opts) abort
           sleep 10m
         endwhile
         if get(status, 'code', browser[0] !=# 'xdg-open') != 0
-          echo "Failed to open browser.  Visit " . uri
+          call s:Echo("Failed to open browser.  Visit " . uri)
         else
-          echo "Opened " . uri
+          call s:Echo("Opened " . uri)
         endif
       else
-        echo "Could not find browser.  Visit " . uri
+        call s:Echo("Could not find browser.  Visit " . uri)
       endif
-      echo "Waiting (could take up to 5 seconds)"
+      call s:Echo("Waiting (could take up to 5 seconds)")
       let request = copilot#Request('signInConfirm', {'userCode': data.userCode}).Wait()
     finally
       if exists('mouse')
