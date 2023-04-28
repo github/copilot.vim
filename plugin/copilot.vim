@@ -73,15 +73,26 @@ if !get(g:, 'copilot_no_maps')
   imap <Plug>(copilot-next)     <Cmd>call copilot#Next()<CR>
   imap <Plug>(copilot-previous) <Cmd>call copilot#Previous()<CR>
   imap <Plug>(copilot-suggest)  <Cmd>call copilot#Suggest()<CR>
-  if empty(mapcheck('<M-]>', 'i'))
-    imap <M-]> <Plug>(copilot-next)
-  endif
-  if empty(mapcheck('<M-[>', 'i'))
-    imap <M-[> <Plug>(copilot-previous)
-  endif
-  if empty(mapcheck('<M-Bslash>', 'i'))
-    imap <M-Bslash> <Plug>(copilot-suggest)
-  endif
+  try
+    if !has('nvim') && &encoding ==# 'utf-8'
+      " avoid 8-bit meta collision with UTF-8 characters
+      let s:restore_encoding = 1
+      set encoding=cp949
+    endif
+    if empty(mapcheck('<M-]>', 'i'))
+      imap <M-]> <Plug>(copilot-next)
+    endif
+    if empty(mapcheck('<M-[>', 'i'))
+      imap <M-[> <Plug>(copilot-previous)
+    endif
+    if empty(mapcheck('<M-Bslash>', 'i'))
+      imap <M-Bslash> <Plug>(copilot-suggest)
+    endif
+  finally
+    if exists('s:restore_encoding')
+      set encoding=utf-8
+    endif
+  endtry
 endif
 
 call copilot#Init()

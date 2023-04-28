@@ -206,12 +206,17 @@ function! s:SuggestionTextWithAdjustments() abort
       return ['', 0, 0, '']
     endif
     let typed = strpart(line, 0, offset)
-    let delete = strpart(line, offset)
-    if choice.range.end.line == line('.') - 1 && choice.range.end.character < copilot#doc#UTF16Width(line)
-      let append = delete
+    if exists('*utf16idx')
+      let end_offset = byteidx(line, choice.range.end.character, 1)
+    elseif has('nvim')
+      let end_offset = v:lua.vim.str_byteindex(line, choice.range.end.character, 1)
     else
-      let append = ''
+      let end_offset = len(line)
+      while copilot#doc#UTF16Width(strpart(line, 0, end_offset)) > choice.range.end.character && end_offset > 0
+        let end_offset -= 1
+      endwhile
     endif
+    let delete = strpart(line, offset, end_offset - offset)
     let uuid = get(choice, 'uuid', '')
     if typed =~# '^\s*$'
       let leading = matchstr(choice.text, '^\s\+')
@@ -220,7 +225,7 @@ function! s:SuggestionTextWithAdjustments() abort
         return [unindented, len(typed) - len(leading), strchars(delete), uuid]
       endif
     elseif typed ==# strpart(choice.text, 0, offset)
-      return [strpart(choice.text . append, offset), 0, strchars(delete), uuid]
+      return [strpart(choice.text, offset), 0, strchars(delete), uuid]
     endif
   catch
     call copilot#logger#Exception()
@@ -369,7 +374,8 @@ function! s:UpdatePreview() abort
     if s:has_nvim_ghost_text
       let data = {'id': 1}
       let data.virt_text_win_col = virtcol('.') - 1
-      let data.virt_text = [[text[0] . repeat(' ', delete - len(text[0])), s:hlgroup]]
+      let append = strpart(getline('.'), col('.') - 1 + delete)
+      let data.virt_text = [[text[0] . append . repeat(' ', delete - len(text[0])), s:hlgroup]]
       if len(text) > 1
         let data.virt_lines = map(text[1:-1], { _, l -> [[l, s:hlgroup]] })
         if !empty(annot)
@@ -381,11 +387,6 @@ function! s:UpdatePreview() abort
       let data.hl_mode = 'combine'
       call nvim_buf_set_extmark(0, copilot#NvimNs(), line('.')-1, col('.')-1, data)
     else
-      let trail = strpart(getline('.'), col('.') - 1)
-      while !empty(trail) && trail[-1] ==# text[0][-1]
-        let trail = trail[:-2]
-        let text[0] = text[0][:-2]
-      endwhile
       call prop_add(line('.'), col('.'), {'type': s:hlgroup, 'text': text[0]})
       for line in text[1:]
         call prop_add(line('.'), 0, {'type': s:hlgroup, 'text_align': 'below', 'text': line})
@@ -490,7 +491,7 @@ function! copilot#Accept(...) abort
     call s:ClearPreview()
     let s:suggestion_text = s.text
     return repeat("\<Left>\<Del>", s.outdentSize) . repeat("\<Del>", s.deleteSize) .
-            \ "\<C-R>\<C-O>=copilot#TextQueuedForInsertion()\<CR>"
+            \ "\<C-R>\<C-O>=copilot#TextQueuedForInsertion()\<CR>\<End>"
   endif
   let default = get(g:, 'copilot_tab_fallback', pumvisible() ? "\<C-N>" : "\t")
   if !a:0
