@@ -1,4 +1,4 @@
-This technical preview is a Beta Preview under the [GitHub Terms of
-Service](https://docs.github.com/en/github/site-policy/github-terms-of-service#j-beta-previews).
+GitHub Copilot is offered under the [GitHub Terms of
+Service](https://docs.github.com/en/site-policy/github-terms/github-terms-for-additional-products-and-features#github-copilot).
 
-Copyright (C) 2021 GitHub, Inc. - All Rights Reserved.
+Copyright (C) 2023 GitHub, Inc. - All Rights Reserved.

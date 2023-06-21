@@ -51,28 +51,14 @@ function! s:RelativePath(absolute) abort
   endif
 endfunction
 
-function! s:UrlEncode(str) abort
-  return substitute(iconv(a:str, 'latin1', 'utf-8'),'[^A-Za-z0-9._~!$&''()*+,;=:@/-]','\="%".printf("%02X",char2nr(submatch(0)))','g')
-endfunction
-
 function! copilot#doc#Get() abort
   let absolute = tr(@%, s:slash, '/')
   if absolute !~# '^\a\+:\|^/\|^$' && &buftype =~# '^\%(nowrite\)\=$'
     let absolute = substitute(tr(getcwd(), s:slash, '/'), '/\=$', '/', '') . absolute
   endif
-  if has('win32') && absolute =~# '^\a://\@!'
-    let uri = 'file:///' . strpart(absolute, 0, 2) . s:UrlEncode(strpart(absolute, 2))
-  elseif absolute =~# '^/'
-    let uri = 'file://' . s:UrlEncode(absolute)
-  elseif absolute =~# '^\a[[:alnum:].+-]*:\|^$'
-    let uri = absolute
-  else
-    let uri = ''
-  endif
   let doc = {
-        \ 'languageId': copilot#doc#LanguageForFileType(&filetype),
-        \ 'path': absolute,
-        \ 'uri': uri,
+        \ 'uri': bufnr(''),
+        \ 'version': getbufvar('', 'changedtick'),
         \ 'relativePath': s:RelativePath(absolute),
         \ 'insertSpaces': &expandtab ? v:true : v:false,
         \ 'tabSize': shiftwidth(),
@@ -82,13 +68,6 @@ function! copilot#doc#Get() abort
   let col_byte = col('.') - (mode() =~# '^[iR]' || empty(line))
   let col_utf16 = copilot#doc#UTF16Width(strpart(line, 0, col_byte))
   let doc.position = {'line': line('.') - 1, 'character': col_utf16}
-  if !has('nvim')
-    let lines = getline(1, '$')
-    if &eol
-      call add(lines, "")
-    endif
-    let doc.source = join(lines, "\n")
-  endif
   return doc
 endfunction
 
@@ -97,7 +76,7 @@ function! copilot#doc#Params(...) abort
   let params = extend({'doc': extend(copilot#doc#Get(), get(extra, 'doc', {}))}, extra, 'keep')
   let params.textDocument = {
         \ 'uri': params.doc.uri,
-        \ 'languageId': params.doc.languageId,
+        \ 'version': params.doc.version,
         \ 'relativePath': params.doc.relativePath,
         \ }
   let params.position = params.doc.position

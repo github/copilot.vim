@@ -19,14 +19,22 @@ if s:has_vim_ghost_text && empty(prop_type_get(s:annot_hlgroup))
   call prop_type_add(s:annot_hlgroup, {'highlight': s:annot_hlgroup})
 endif
 
+function! s:Echo(msg) abort
+  if has('nvim') && &cmdheight == 0
+    call v:lua.vim.notify(a:msg, v:null, {'title': 'GitHub Copilot'})
+  else
+    echo a:msg
+  endif
+endfunction
+
 function! s:EditorConfiguration() abort
   let filetypes = copy(s:filetype_defaults)
   if type(get(g:, 'copilot_filetypes')) == v:t_dict
     call extend(filetypes, g:copilot_filetypes)
   endif
   return {
-        \ 'enableAutoCompletions': !empty(get(g:, 'copilot_enabled', 1)),
-        \ 'disabledLanguages': sort(keys(filter(filetypes, { k, v -> empty(v) }))),
+        \ 'enableAutoCompletions': empty(get(g:, 'copilot_enabled', 1)) ? v:false : v:true,
+        \ 'disabledLanguages': map(sort(keys(filter(filetypes, { k, v -> empty(v) }))), { _, v -> {'languageId': v}}),
         \ }
 endfunction
 
@@ -198,7 +206,17 @@ function! s:SuggestionTextWithAdjustments() abort
       return ['', 0, 0, '']
     endif
     let typed = strpart(line, 0, offset)
-    let delete = strpart(line, offset)
+    if exists('*utf16idx')
+      let end_offset = byteidx(line, choice.range.end.character, 1)
+    elseif has('nvim')
+      let end_offset = v:lua.vim.str_byteindex(line, choice.range.end.character, 1)
+    else
+      let end_offset = len(line)
+      while copilot#doc#UTF16Width(strpart(line, 0, end_offset)) > choice.range.end.character && end_offset > 0
+        let end_offset -= 1
+      endwhile
+    endif
+    let delete = strpart(line, offset, end_offset - offset)
     let uuid = get(choice, 'uuid', '')
     if typed =~# '^\s*$'
       let leading = matchstr(choice.text, '^\s\+')
@@ -356,7 +374,8 @@ function! s:UpdatePreview() abort
     if s:has_nvim_ghost_text
       let data = {'id': 1}
       let data.virt_text_win_col = virtcol('.') - 1
-      let data.virt_text = [[text[0] . repeat(' ', delete - len(text[0])), s:hlgroup]]
+      let append = strpart(getline('.'), col('.') - 1 + delete)
+      let data.virt_text = [[text[0] . append . repeat(' ', delete - len(text[0])), s:hlgroup]]
       if len(text) > 1
         let data.virt_lines = map(text[1:-1], { _, l -> [[l, s:hlgroup]] })
         if !empty(annot)
@@ -368,11 +387,6 @@ function! s:UpdatePreview() abort
       let data.hl_mode = 'combine'
       call nvim_buf_set_extmark(0, copilot#NvimNs(), line('.')-1, col('.')-1, data)
     else
-      let trail = strpart(getline('.'), col('.') - 1)
-      while !empty(trail) && trail[-1] ==# text[0][-1]
-        let trail = trail[:-2]
-        let text[0] = text[0][:-2]
-      endwhile
       call prop_add(line('.'), col('.'), {'type': s:hlgroup, 'text': text[0]})
       for line in text[1:]
         call prop_add(line('.'), 0, {'type': s:hlgroup, 'text_align': 'below', 'text': line})
@@ -439,6 +453,9 @@ endfunction
 function! copilot#OnInsertEnter() abort
   let s:is_mapped = copilot#IsMapped()
   let s:dest = bufnr('^copilot://$')
+  if s:dest > 0 && bufwinnr(s:dest) < 0
+    let s:dest = -1
+  endif
   if s:dest < 0 && !s:has_ghost_text
     let s:dest = 0
   endif
@@ -474,7 +491,7 @@ function! copilot#Accept(...) abort
     call s:ClearPreview()
     let s:suggestion_text = s.text
     return repeat("\<Left>\<Del>", s.outdentSize) . repeat("\<Del>", s.deleteSize) .
-            \ "\<C-R>\<C-O>=copilot#TextQueuedForInsertion()\<CR>"
+            \ "\<C-R>\<C-O>=copilot#TextQueuedForInsertion()\<CR>\<End>"
   endif
   let default = get(g:, 'copilot_tab_fallback', pumvisible() ? "\<C-N>" : "\t")
   if !a:0
@@ -622,16 +639,16 @@ function! s:commands.setup(opts) abort
       let @+ = data.userCode
       let @* = data.userCode
     endif
-    echo "First copy your one-time code: " . data.userCode
+    call s:Echo("First copy your one-time code: " . data.userCode)
     try
       if len(&mouse)
         let mouse = &mouse
         set mouse=
       endif
       if get(a:opts, 'bang')
-        echo "In your browser, visit " . uri
+        call s:Echo("In your browser, visit " . uri)
       elseif len(browser)
-        echo "Press ENTER to open GitHub in your browser"
+        call s:Echo("Press ENTER to open GitHub in your browser")
         let c = getchar()
         while c isnot# 13 && c isnot# 10 && c isnot# 0
           let c = getchar()
@@ -643,14 +660,14 @@ function! s:commands.setup(opts) abort
           sleep 10m
         endwhile
         if get(status, 'code', browser[0] !=# 'xdg-open') != 0
-          echo "Failed to open browser.  Visit " . uri
+          call s:Echo("Failed to open browser.  Visit " . uri)
         else
-          echo "Opened " . uri
+          call s:Echo("Opened " . uri)
         endif
       else
-        echo "Could not find browser.  Visit " . uri
+        call s:Echo("Could not find browser.  Visit " . uri)
       endif
-      echo "Waiting (could take up to 5 seconds)"
+      call s:Echo("Waiting (could take up to 5 seconds)")
       let request = copilot#Request('signInConfirm', {'userCode': data.userCode}).Wait()
     finally
       if exists('mouse')

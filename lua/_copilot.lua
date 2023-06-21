@@ -29,15 +29,23 @@ copilot.lsp_start_client = function(cmd, handler_names)
   return id
 end
 
-copilot.lsp_request = function(client_id, method, params, bufnr)
+copilot.lsp_request = function(client_id, method, params)
   local client = vim.lsp.get_client_by_id(client_id)
   if not client then return end
-  bufnr = bufnr or 0
-  vim.lsp.buf_attach_client(bufnr, client_id)
+  vim.lsp.buf_attach_client(0, client_id)
+  local bufnr
+  for _, doc in ipairs({params.doc, params.textDocument}) do
+    if doc and type(doc.uri) == 'number' then
+      bufnr = doc.uri
+      vim.lsp.buf_attach_client(bufnr, client_id)
+      doc.uri = vim.uri_from_bufnr(bufnr)
+      doc.version = vim.lsp.util.buf_versions[bufnr]
+    end
+  end
   local _, id
   _, id = client.request(method, params, function(err, result)
-    vim.call('copilot#agent#LspResponse', client_id, {id = id, error = err, result = result}, bufnr)
-  end)
+    vim.call('copilot#agent#LspResponse', client_id, {id = id, error = err, result = result})
+  end, bufnr)
   return id
 end
 
