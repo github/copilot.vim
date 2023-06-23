@@ -61,4 +61,4 @@ See `:help copilot` for more information.
 
 We’d love to get your help in making GitHub Copilot better!  If you have
 feedback or encounter any problems, please reach out on our [Feedback
-forum](https://github.com/github-community/community/discussions/categories/copilot).
+forum](https://github.com/orgs/community/discussions/categories/copilot).
