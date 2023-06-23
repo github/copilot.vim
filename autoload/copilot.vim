@@ -697,10 +697,10 @@ function! s:commands.version(opts) abort
   echo 'copilot.vim ' .info.editorPluginInfo.version
   echo info.editorInfo.name . ' ' . info.editorInfo.version
   if exists('s:agent.node_version')
-    echo 'copilot/dist/agent.js ' . s:agent.Call('getVersion', {}).version
+    echo 'dist/agent.js ' . s:agent.Call('getVersion', {}).version
     echo 'Node.js ' . s:agent.node_version
   else
-    echo 'copilot/dist/agent.js not running'
+    echo 'dist/agent.js not running'
   endif
 endfunction
 
@@ -714,7 +714,7 @@ function! s:UpdateEditorConfiguration() abort
   endtry
 endfunction
 
-let s:feedback_url = 'https://github.com/github-community/community/discussions/categories/copilot'
+let s:feedback_url = 'https://github.com/orgs/community/discussions/categories/copilot'
 function! s:commands.feedback(opts) abort
   echo s:feedback_url
   let browser = copilot#Browser()

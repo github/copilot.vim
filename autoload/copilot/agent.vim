@@ -5,7 +5,7 @@ let g:autoloaded_copilot_agent = 1
 
 scriptencoding utf-8
 
-let s:plugin_version = '1.8.4'
+let s:plugin_version = '1.9.0'
 
 let s:error_exit = -1
 
@@ -425,9 +425,9 @@ function! s:Command() abort
   endif
   let agent = get(g:, 'copilot_agent_command', '')
   if empty(agent) || !filereadable(agent)
-    let agent = s:root . '/copilot/dist/agent.js'
+    let agent = s:root . '/dist/agent.js'
     if !filereadable(agent)
-      return [v:null, node_version, 'Could not find agent.js (bad install?)']
+      return [v:null, node_version, 'Could not find dist/agent.js (bad install?)']
     endif
   endif
   return [node + [agent], node_version, '']
