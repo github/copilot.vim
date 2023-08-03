@@ -26,8 +26,6 @@
  * MIT Licensed
  */
 
-/** @license URI.js v4.4.1 (c) 2011 Gary Court. License: http://github.com/garycourt/uri-js */
-
 /** @preserve
 	 * Counter block mode compatible with  Dr Brian Gladman fileenc.c
 	 * derived from CryptoJS.mode.CTR
