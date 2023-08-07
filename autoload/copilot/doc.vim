@@ -11,6 +11,38 @@ function copilot#doc#UTF16Width(str) abort
   return strchars(substitute(a:str, "\\%#=2[^\u0001-\uffff]", "  ", 'g'))
 endfunction
 
+if exists('*utf16idx')
+
+  function! copilot#doc#UTF16ToByteIdx(str, utf16_idx) abort
+    return byteidx(a:str, a:utf16_idx, 1)
+  endfunction
+
+elseif has('nvim')
+
+  function! copilot#doc#UTF16ToByteIdx(str, utf16_idx) abort
+    try
+      return v:lua.vim.str_byteindex(a:str, a:utf16_idx, 1)
+    catch /^Vim(return):E5108:/
+      return -1
+    endtry
+  endfunction
+
+else
+
+  function! copilot#doc#UTF16ToByteIdx(str, utf16_idx) abort
+    if copilot#doc#UTF16Width(a:str) < a:utf16_idx
+      return -1
+    endif
+    let end_offset = len(a:str)
+    while copilot#doc#UTF16Width(strpart(a:str, 0, end_offset)) > a:utf16_idx && end_offset > 0
+      let end_offset -= 1
+    endwhile
+    return end_offset
+  endfunction
+
+endif
+
+
 let s:language_normalization_map = {
       \ "bash":            "shellscript",
       \ "bst":             "bibtex",

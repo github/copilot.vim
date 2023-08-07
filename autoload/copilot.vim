@@ -6,7 +6,8 @@ let g:autoloaded_copilot = 1
 scriptencoding utf-8
 
 let s:has_nvim_ghost_text = has('nvim-0.6') && exists('*nvim_buf_get_mark')
-let s:has_vim_ghost_text = has('patch-9.0.0185') && has('textprop')
+let s:vim_minimum_version = '9.0.0185'
+let s:has_vim_ghost_text = has('patch-' . s:vim_minimum_version) && has('textprop')
 let s:has_ghost_text = s:has_nvim_ghost_text || s:has_vim_ghost_text
 
 let s:hlgroup = 'CopilotSuggestion'
@@ -201,31 +202,22 @@ function! s:SuggestionTextWithAdjustments() abort
     endif
     let line = getline('.')
     let offset = col('.') - 1
-    if choice.range.start.character != 0
-      call copilot#logger#Warn('unexpected range ' . json_encode(choice.range))
-      return ['', 0, 0, '']
-    endif
+    let choice_text = strpart(line, 0, copilot#doc#UTF16ToByteIdx(line, choice.range.start.character)) . choice.text
     let typed = strpart(line, 0, offset)
-    if exists('*utf16idx')
-      let end_offset = byteidx(line, choice.range.end.character, 1)
-    elseif has('nvim')
-      let end_offset = v:lua.vim.str_byteindex(line, choice.range.end.character, 1)
-    else
+    let end_offset = copilot#doc#UTF16ToByteIdx(line, choice.range.end.character)
+    if end_offset < 0
       let end_offset = len(line)
-      while copilot#doc#UTF16Width(strpart(line, 0, end_offset)) > choice.range.end.character && end_offset > 0
-        let end_offset -= 1
-      endwhile
     endif
     let delete = strpart(line, offset, end_offset - offset)
     let uuid = get(choice, 'uuid', '')
     if typed =~# '^\s*$'
-      let leading = matchstr(choice.text, '^\s\+')
-      let unindented = strpart(choice.text, len(leading))
+      let leading = matchstr(choice_text, '^\s\+')
+      let unindented = strpart(choice_text, len(leading))
       if strpart(typed, 0, len(leading)) == leading && unindented !=# delete
         return [unindented, len(typed) - len(leading), strchars(delete), uuid]
       endif
-    elseif typed ==# strpart(choice.text, 0, offset)
-      return [strpart(choice.text, offset), 0, strchars(delete), uuid]
+    elseif typed ==# strpart(choice_text, 0, offset)
+      return [strpart(choice_text, offset), 0, strchars(delete), uuid]
     endif
   catch
     call copilot#logger#Exception()
@@ -535,7 +527,11 @@ let s:commands = {}
 function! s:EnabledStatusMessage() abort
   let buf_disabled = s:BufferDisabled()
   if !s:has_ghost_text && bufwinid('copilot://') == -1
-    return "Neovim 0.6 required to support ghost text"
+    if has('nvim')
+      return "Neovim 0.6 required to support ghost text"
+    else
+      return "Vim " . s:vim_minimum_version . " required to support ghost text"
+    endif
   elseif !copilot#IsMapped()
     return '<Tab> map has been disabled or is claimed by another plugin'
   elseif !get(g:, 'copilot_enabled', 1)
