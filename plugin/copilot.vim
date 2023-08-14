@@ -60,6 +60,7 @@ augroup github_copilot
   autocmd CompleteChanged      * call s:Event('CompleteChanged')
   autocmd ColorScheme,VimEnter * call s:ColorScheme()
   autocmd VimEnter             * call s:MapTab()
+  autocmd VimLeavePre          * call s:Event('VimLeavePre')
   autocmd BufReadCmd copilot://* setlocal buftype=nofile bufhidden=wipe nobuflisted readonly nomodifiable
 augroup END
 

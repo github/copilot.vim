@@ -111,9 +111,6 @@ function! copilot#Clear() abort
   if exists('g:_copilot_timer')
     call timer_stop(remove(g:, '_copilot_timer'))
   endif
-  if exists('s:uuid')
-    call copilot#Request('notifyRejected', {'uuids': [remove(s:, 'uuid')]})
-  endif
   if exists('b:_copilot')
     call copilot#agent#Cancel(get(b:_copilot, 'first', {}))
     call copilot#agent#Cancel(get(b:_copilot, 'cycling', {}))
@@ -123,7 +120,14 @@ function! copilot#Clear() abort
   return ''
 endfunction
 
+function! s:Reject() abort
+  if exists('s:uuid')
+    call copilot#Request('notifyRejected', {'uuids': [remove(s:, 'uuid')]})
+  endif
+endfunction
+
 function! copilot#Dismiss() abort
+  call s:Reject()
   call copilot#Clear()
   call s:UpdatePreview()
   return ''
@@ -388,6 +392,7 @@ function! s:UpdatePreview() abort
       endif
     endif
     if uuid !=# get(s:, 'uuid', '')
+      call s:Reject()
       let s:uuid = uuid
       call copilot#Request('notifyShown', {'uuid': uuid})
     endif
@@ -464,6 +469,10 @@ endfunction
 
 function! copilot#OnCursorMovedI() abort
   return copilot#Schedule()
+endfunction
+
+function! copilot#OnVimLeavePre() abort
+  return s:Reject()
 endfunction
 
 function! copilot#TextQueuedForInsertion() abort
