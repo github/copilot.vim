@@ -120,14 +120,16 @@ function! copilot#Clear() abort
   return ''
 endfunction
 
-function! s:Reject() abort
-  if exists('s:uuid')
-    call copilot#Request('notifyRejected', {'uuids': [remove(s:, 'uuid')]})
+function! s:Reject(bufnr) abort
+  let uuid = getbufvar(a:bufnr, '_copilot_uuid')
+  if !empty(uuid)
+    call setbufvar(a:bufnr, '_copilot_uuid', '')
+    call copilot#Request('notifyRejected', {'uuids': [uuid]})
   endif
 endfunction
 
 function! copilot#Dismiss() abort
-  call s:Reject()
+  call s:Reject('%')
   call copilot#Clear()
   call s:UpdatePreview()
   return ''
@@ -145,6 +147,9 @@ let s:filetype_defaults = {
       \ '.': 0}
 
 function! s:BufferDisabled() abort
+  if &buftype =~# '^\%(help\|prompt\|quickfix\|terminal\)$'
+    return 5
+  endif
   if exists('b:copilot_disabled')
     return empty(b:copilot_disabled) ? 0 : 3
   endif
@@ -197,11 +202,11 @@ endfunction
 
 function! s:SuggestionTextWithAdjustments() abort
   try
-    if mode() !~# '^[iR]' || (s:HideDuringCompletion() && pumvisible()) || !s:dest || !exists('b:_copilot.suggestions')
+    if mode() !~# '^[iR]' || (s:HideDuringCompletion() && pumvisible()) || !exists('b:_copilot.suggestions')
       return ['', 0, 0, '']
     endif
     let choice = get(b:_copilot.suggestions, b:_copilot.choice, {})
-    if !has_key(choice, 'range') || choice.range.start.line != line('.') - 1
+    if !has_key(choice, 'range') || choice.range.start.line != line('.') - 1 || type(choice.text) !=# v:t_string
       return ['', 0, 0, '']
     endif
     let line = getline('.')
@@ -294,49 +299,6 @@ function! copilot#GetDisplayedSuggestion() abort
         \ 'deleteSize': delete}
 endfunction
 
-let s:dest = 0
-function! s:WindowPreview(lines, outdent, delete, ...) abort
-  try
-    if !bufloaded(s:dest)
-      let s:dest = -s:has_ghost_text
-      return
-    endif
-    let buf = s:dest
-    let winid = bufwinid(buf)
-    call setbufvar(buf, '&modifiable', 1)
-    let old_lines = getbufline(buf, 1, '$')
-    if len(a:lines) < len(old_lines) && old_lines !=# ['']
-      silent call deletebufline(buf, 1, '$')
-    endif
-    if empty(a:lines)
-      call setbufvar(buf, '&modifiable', 0)
-      if winid > 0
-        call setmatches([], winid)
-      endif
-      return
-    endif
-    let col = col('.') - a:outdent - 1
-    let text = [strpart(getline('.'), 0, col) . a:lines[0]] + a:lines[1:-1]
-    if old_lines !=# text
-      silent call setbufline(buf, 1, text)
-    endif
-    call setbufvar(buf, '&tabstop', &tabstop)
-    if getbufvar(buf, '&filetype') !=# 'copilot.' . &filetype
-      silent! call setbufvar(buf, '&filetype', 'copilot.' . &filetype)
-    endif
-    call setbufvar(buf, '&modifiable', 0)
-    if winid > 0
-      if col > 0
-        call setmatches([{'group': s:hlgroup, 'id': 4, 'priority': 10, 'pos1': [1, 1, col]}] , winid)
-      else
-        call setmatches([] , winid)
-      endif
-    endif
-  catch
-    call copilot#logger#Exception()
-  endtry
-endfunction
-
 function! s:ClearPreview() abort
   if s:has_nvim_ghost_text
     call nvim_buf_del_extmark(0, copilot#NvimNs(), 1)
@@ -353,10 +315,7 @@ function! s:UpdatePreview() abort
     if empty(text[-1])
       call remove(text, -1)
     endif
-    if s:dest > 0
-      call s:WindowPreview(text, outdent, delete)
-    endif
-    if empty(text) || s:dest >= 0
+    if empty(text) || !s:has_ghost_text
       return s:ClearPreview()
     endif
     if exists('b:_copilot.cycling_callbacks')
@@ -391,9 +350,9 @@ function! s:UpdatePreview() abort
         call prop_add(line('.'), col('$'), {'type': s:annot_hlgroup, 'text': ' ' . annot})
       endif
     endif
-    if uuid !=# get(s:, 'uuid', '')
-      call s:Reject()
-      let s:uuid = uuid
+    if uuid !=# get(b:, '_copilot_uuid', '')
+      call s:Reject('%')
+      let b:_copilot_uuid = uuid
       call copilot#Request('notifyShown', {'uuid': uuid})
     endif
   catch
@@ -436,7 +395,7 @@ let s:is_mapped = copilot#IsMapped()
 
 function! copilot#Schedule(...) abort
   call copilot#Clear()
-  if !s:is_mapped || !s:dest || !copilot#Enabled()
+  if !s:is_mapped || !s:has_ghost_text || !copilot#Enabled()
     return
   endif
   let delay = a:0 ? a:1 : get(g:, 'copilot_idle_delay', 75)
@@ -448,14 +407,6 @@ function! copilot#OnInsertLeave() abort
 endfunction
 
 function! copilot#OnInsertEnter() abort
-  let s:is_mapped = copilot#IsMapped()
-  let s:dest = bufnr('^copilot://$')
-  if s:dest > 0 && bufwinnr(s:dest) < 0
-    let s:dest = -1
-  endif
-  if s:dest < 0 && !s:has_ghost_text
-    let s:dest = 0
-  endif
   return copilot#Schedule()
 endfunction
 
@@ -471,8 +422,11 @@ function! copilot#OnCursorMovedI() abort
   return copilot#Schedule()
 endfunction
 
+function! copilot#OnBufUnload() abort
+  call s:Reject(+expand('<abuf>'))
+endfunction
+
 function! copilot#OnVimLeavePre() abort
-  return s:Reject()
 endfunction
 
 function! copilot#TextQueuedForInsertion() abort
@@ -487,8 +441,8 @@ function! copilot#Accept(...) abort
   let s = copilot#GetDisplayedSuggestion()
   if !empty(s.text)
     unlet! b:_copilot
+    let b:_copilot_uuid = ''
     call copilot#Request('notifyAccepted', {'uuid': s.uuid})
-    unlet! s:uuid
     call s:ClearPreview()
     let s:suggestion_text = s.text
     return repeat("\<Left>\<Del>", s.outdentSize) . repeat("\<Del>", s.deleteSize) .
@@ -503,7 +457,6 @@ function! copilot#Accept(...) abort
     try
       return call(a:1, [])
     catch
-      call copilot#logger#Exception()
       return default
     endtry
   else
@@ -535,7 +488,7 @@ let s:commands = {}
 
 function! s:EnabledStatusMessage() abort
   let buf_disabled = s:BufferDisabled()
-  if !s:has_ghost_text && bufwinid('copilot://') == -1
+  if !s:has_ghost_text
     if has('nvim')
       return "Neovim 0.6 required to support ghost text"
     else
@@ -545,6 +498,8 @@ function! s:EnabledStatusMessage() abort
     return '<Tab> map has been disabled or is claimed by another plugin'
   elseif !get(g:, 'copilot_enabled', 1)
     return 'Disabled globally by :Copilot disable'
+  elseif buf_disabled is# 5
+    return 'Disabled for current buffer by buftype=' . &buftype
   elseif buf_disabled is# 4
     return 'Disabled for current buffer by b:copilot_enabled'
   elseif buf_disabled is# 3
@@ -752,24 +707,6 @@ function! s:commands.panel(opts) abort
     return copilot#panel#Open(a:opts)
   endif
 endfunction
-
-function! s:commands.split(opts) abort
-  let mods = a:opts.mods
-  if mods !~# '\<\%(aboveleft\|belowright\|leftabove\|rightbelow\|topleft\|botright\|tab\)\>'
-    let mods = 'topleft ' . mods
-  endif
-  if a:opts.bang && getwinvar(bufwinid('copilot://'), '&previewwindow')
-    if mode() =~# '^[iR]'
-      " called from <Cmd> map
-      return mods . ' pclose|sil! call copilot#OnInsertEnter()'
-    else
-      return mods . ' pclose'
-    endif
-  endif
-  return mods . ' pedit copilot://'
-endfunction
-
-let s:commands.open = s:commands.split
 
 function! copilot#CommandComplete(arg, lead, pos) abort
   let args = matchstr(strpart(a:lead, 0, a:pos), 'C\%[opilot][! ] *\zs.*')
