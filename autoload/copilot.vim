@@ -121,11 +121,15 @@ function! copilot#Clear() abort
 endfunction
 
 function! s:Reject(bufnr) abort
-  let uuid = getbufvar(a:bufnr, '_copilot_uuid')
-  if !empty(uuid)
-    call setbufvar(a:bufnr, '_copilot_uuid', '')
-    call copilot#Request('notifyRejected', {'uuids': [uuid]})
-  endif
+  try
+    let dict = getbufvar(a:bufnr, '_copilot')
+    if type(dict) == v:t_dict && !empty(get(dict, 'shown_choices', {}))
+      call copilot#Request('notifyRejected', {'uuids': keys(dict.shown_choices)})
+      let dict.shown_choices = {}
+    endif
+  catch
+    call copilot#logger#Exception()
+  endtry
 endfunction
 
 function! copilot#Dismiss() abort
@@ -350,9 +354,8 @@ function! s:UpdatePreview() abort
         call prop_add(line('.'), col('$'), {'type': s:annot_hlgroup, 'text': ' ' . annot})
       endif
     endif
-    if uuid !=# get(b:, '_copilot_uuid', '')
-      call s:Reject('%')
-      let b:_copilot_uuid = uuid
+    if !has_key(b:_copilot.shown_choices, uuid)
+      let b:_copilot.shown_choices[uuid] = v:true
       call copilot#Request('notifyShown', {'uuid': uuid})
     endif
   catch
@@ -366,6 +369,7 @@ function! s:HandleTriggerResult(result) abort
   endif
   let b:_copilot.suggestions = get(a:result, 'completions', [])
   let b:_copilot.choice = 0
+  let b:_copilot.shown_choices = {}
   call s:UpdatePreview()
 endfunction
 
@@ -441,7 +445,6 @@ function! copilot#Accept(...) abort
   let s = copilot#GetDisplayedSuggestion()
   if !empty(s.text)
     unlet! b:_copilot
-    let b:_copilot_uuid = ''
     call copilot#Request('notifyAccepted', {'uuid': s.uuid})
     call s:ClearPreview()
     let s:suggestion_text = s.text
