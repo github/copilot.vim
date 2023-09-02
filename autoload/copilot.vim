@@ -88,6 +88,17 @@ function! copilot#RunningAgent() abort
   endif
 endfunction
 
+function! s:NodeVersionWarning() abort
+  if exists('s:agent.node_version') && s:agent.node_version =~# '^16\.'
+    echohl WarningMsg
+    echo "Warning: Node.js 16 is approaching end of life and support will be dropped in a future release of copilot.vim."
+    if get(g:, 'copilot_node_command', 'node') isnot# 'node'
+      echo "g:copilot_node_command is set to a non-default value. Consider removing it from your" (has('nvim') ? 'Neovim' : 'Vim') "configuration."
+    endif
+    echohl NONE
+  endif
+endfunction
+
 function! copilot#Request(method, params, ...) abort
   let agent = copilot#Agent()
   return call(agent.Request, [a:method, a:params] + a:000)
@@ -395,11 +406,10 @@ function! copilot#IsMapped() abort
   return get(g:, 'copilot_assume_mapped') ||
         \ hasmapto('copilot#Accept(', 'i')
 endfunction
-let s:is_mapped = copilot#IsMapped()
 
 function! copilot#Schedule(...) abort
   call copilot#Clear()
-  if !s:is_mapped || !s:has_ghost_text || !copilot#Enabled()
+  if !s:has_ghost_text || !copilot#Enabled() || !copilot#IsMapped()
     return
   endif
   let delay = a:0 ? a:1 : get(g:, 'copilot_idle_delay', 75)
@@ -568,6 +578,7 @@ function! s:commands.status(opts) abort
   endif
 
   echo 'Copilot: Enabled and online'
+  call s:NodeVersionWarning()
 endfunction
 
 function! s:commands.signout(opts) abort
@@ -662,6 +673,7 @@ function! s:commands.version(opts) abort
   if exists('s:agent.node_version')
     echo 'dist/agent.js ' . s:agent.Call('getVersion', {}).version
     echo 'Node.js ' . s:agent.node_version
+    call s:NodeVersionWarning()
   else
     echo 'dist/agent.js not running'
   endif
