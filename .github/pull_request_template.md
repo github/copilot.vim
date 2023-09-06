@@ -1,1 +1,3 @@
-At the moment we are not accepting contributions to the repository.
+uhHHHHhhHhhh cAWK 
+
+PUSH TO PRODUCTION, PUSH TO TESTING, PUSH TO STABLE, PUSH TO UNSTABLE, DETACH HEAD, REBASE, SQUASH
