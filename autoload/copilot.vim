@@ -92,9 +92,10 @@ function! s:NodeVersionWarning() abort
   if exists('s:agent.node_version') && s:agent.node_version =~# '^16\.'
     echohl WarningMsg
     echo "Warning: Node.js 16 is approaching end of life and support will be dropped in a future release of copilot.vim."
-    if get(g:, 'copilot_node_command', 'node') isnot# 'node'
-      echo "g:copilot_node_command is set to a non-default value. Consider removing it from your" (has('nvim') ? 'Neovim' : 'Vim') "configuration."
-    endif
+    echohl NONE
+  elseif exists('s:agent.node_version_warning')
+    echohl WarningMsg
+    echo 'Warning:' s:agent.node_version_warning
     echohl NONE
   endif
 endfunction
@@ -745,7 +746,7 @@ function! copilot#Command(line1, line2, range, bang, mods, arg) abort
   try
     let err = copilot#Agent().StartupError()
     if !empty(err)
-      return 'echo ' . string('Copilot: ' . string(err))
+      return 'echo ' . string('Copilot: ' . err)
     endif
     try
       let opts = copilot#Call('checkStatus', {'options': {'localChecksOnly': v:true}})

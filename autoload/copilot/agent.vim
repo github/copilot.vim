@@ -5,7 +5,7 @@ let g:autoloaded_copilot_agent = 1
 
 scriptencoding utf-8
 
-let s:plugin_version = '1.10.2'
+let s:plugin_version = '1.10.3'
 
 let s:error_exit = -1
 
@@ -391,6 +391,18 @@ function! copilot#agent#LspHandle(agent_id, response) abort
   call s:OnResponse(s:instances[a:agent_id], a:response)
 endfunction
 
+function! s:GetNodeVersion(command) abort
+  let out = []
+  let err = []
+  let status = copilot#job#Stream(a:command + ['--version'], function('add', [out]), function('add', [err]))
+  let string = matchstr(join(out, ''), '^v\zs\d\+\.[^[:space:]]*')
+  if status != 0
+    let string = ''
+  endif
+  let major = str2nr(string)
+  return {'status': status, 'string': string, 'major': major}
+endfunction
+
 function! s:Command() abort
   if !has('nvim-0.6') && v:version < 900
     return [v:null, '', 'Vim version too old']
@@ -408,29 +420,34 @@ function! s:Command() abort
       return [v:null, '', 'Node.js executable `' . get(node, 0, '') . "' not found"]
     endif
   endif
-  let out = []
-  let err = []
-  let status = copilot#job#Stream(node + ['--version'], function('add', [out]), function('add', [err]))
-  if status != 0
-    return [v:null, '', 'Node.js exited with status ' . status]
+  let node_version = s:GetNodeVersion(node)
+  let warning = ''
+  if node_version.major < 18 && get(node, 0, '') !=# 'node'
+    let node_version_from_path = s:GetNodeVersion(['node'])
+    if node_version_from_path.major >= 18
+      let warning = 'Ignoring g:copilot_node_command: Node.js ' . node_version.string . ' is end-of-life'
+      let node = ['node']
+      let node_version = node_version_from_path
+    endif
   endif
-  let node_version = matchstr(join(out, ''), '^v\zs\d\+\.[^[:space:]]*')
-  let major = str2nr(node_version)
+  if node_version.status != 0
+    return [v:null, '', 'Node.js exited with status ' . node_version.status]
+  endif
   if !get(g:, 'copilot_ignore_node_version')
-    if major == 0
-      return [v:null, node_version, 'Could not determine Node.js version']
-    elseif major < 16
-      return [v:null, node_version, 'Node.js version 16.x or newer required but found ' . node_version]
+    if node_version.major == 0
+      return [v:null, node_version.string, 'Could not determine Node.js version']
+    elseif node_version.major < 16
+      return [v:null, node_version.string, 'Node.js version 16.x or newer required but found ' . node_version.string]
     endif
   endif
   let agent = get(g:, 'copilot_agent_command', '')
   if empty(agent) || !filereadable(agent)
     let agent = s:root . '/dist/agent.js'
     if !filereadable(agent)
-      return [v:null, node_version, 'Could not find dist/agent.js (bad install?)']
+      return [v:null, node_version.string, 'Could not find dist/agent.js (bad install?)']
     endif
   endif
-  return [node + [agent], node_version, '']
+  return [node + [agent], node_version.string, warning]
 endfunction
 
 function! s:UrlDecode(str) abort
@@ -475,6 +492,11 @@ function! s:GetCapabilitiesResult(result, agent) abort
   let a:agent.capabilities = get(a:result, 'capabilities', {})
   let info = deepcopy(copilot#agent#EditorInfo())
   let info.editorInfo.version .= ' + Node.js ' . a:agent.node_version
+  if has_key(a:agent, 'node_version_warning')
+    let info.editorInfo.version .= ' (ignored g:copilot_node_command)'
+  elseif !empty(get(g:, 'copilot_node_command', ''))
+    let info.editorInfo.version .= ' (used g:copilot_node_command)'
+  endif
   call a:agent.Request('setEditorInfo', extend({'editorConfiguration': a:agent.editorConfiguration}, info))
 endfunction
 
@@ -513,9 +535,13 @@ function! copilot#agent#New(...) abort
         \ }
   let [command, node_version, command_error] = s:Command()
   if len(command_error)
-    let instance.id = -1
-    let instance.startup_error = command_error
-    return instance
+    if empty(command)
+      let instance.id = -1
+      let instance.startup_error = command_error
+      return instance
+    else
+      let instance.node_version_warning = command_error
+    endif
   endif
   let instance.node_version = node_version
   if has('nvim')
