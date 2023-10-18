@@ -413,7 +413,7 @@ function! copilot#Schedule(...) abort
   if !s:has_ghost_text || !copilot#Enabled() || !copilot#IsMapped()
     return
   endif
-  let delay = a:0 ? a:1 : get(g:, 'copilot_idle_delay', 75)
+  let delay = a:0 ? a:1 : get(g:, 'copilot_idle_delay', 15)
   let g:_copilot_timer = timer_start(delay, function('s:Trigger', [bufnr('')]))
 endfunction
 

@@ -76,10 +76,14 @@ function! copilot#job#Stream(argv, out_cb, err_cb, ...) abort
   let OutCb = function(empty(a:out_cb) ? 'copilot#job#Nop' : a:out_cb, a:000[2:-1])
   let ErrCb = function(empty(a:err_cb) ? 'copilot#job#Nop' : a:err_cb, a:000[2:-1])
   let state = {'headers': {}, 'mode': 'headers', 'buffer': ''}
+  let cwd = expand("~")
+  if !isdirectory(cwd) && isdirectory($VIM)
+    let cwd = $VIM
+  endif
   if exists('*job_start')
     let result = {}
     let job = job_start(a:argv, {
-          \ 'cwd': expand("~"),
+          \ 'cwd': cwd,
           \ 'out_mode': 'raw',
           \ 'out_cb': { j, d -> OutCb(d) },
           \ 'err_cb': { j, d -> ErrCb(d) },
@@ -88,7 +92,7 @@ function! copilot#job#Stream(argv, out_cb, err_cb, ...) abort
           \ })
   else
     let jopts = {
-          \ 'cwd': expand("~"),
+          \ 'cwd': cwd,
           \ 'stderr': [''],
           \ 'on_stdout': { j, d, t -> OutCb(join(d, "\n")) },
           \ 'on_stderr': function('s:NvimCallback', [ErrCb]),

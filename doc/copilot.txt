@@ -72,7 +72,7 @@ g:copilot_node_command  Tell Copilot what `node` binary to use with
                         in your PATH is an unsupported version.
 >
                         let g:copilot_node_command =
-                              \ "~/.nodenv/versions/16.15.0/bin/node"
+                              \ "~/.nodenv/versions/18.18.0/bin/node"
 <
                                                 *g:copilot_proxy*
 g:copilot_proxy         Tell Copilot what proxy server to use.  This is a

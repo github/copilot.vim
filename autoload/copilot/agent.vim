@@ -5,7 +5,7 @@ let g:autoloaded_copilot_agent = 1
 
 scriptencoding utf-8
 
-let s:plugin_version = '1.10.3'
+let s:plugin_version = '1.11.0'
 
 let s:error_exit = -1
 
@@ -400,7 +400,8 @@ function! s:GetNodeVersion(command) abort
     let string = ''
   endif
   let major = str2nr(string)
-  return {'status': status, 'string': string, 'major': major}
+  let minor = str2nr(matchstr(string, '\.\zs\d\+'))
+  return {'status': status, 'string': string, 'major': major, 'minor': minor}
 endfunction
 
 function! s:Command() abort
@@ -422,7 +423,7 @@ function! s:Command() abort
   endif
   let node_version = s:GetNodeVersion(node)
   let warning = ''
-  if node_version.major < 18 && get(node, 0, '') !=# 'node'
+  if node_version.major < 18 && get(node, 0, '') !=# 'node' && executable('node')
     let node_version_from_path = s:GetNodeVersion(['node'])
     if node_version_from_path.major >= 18
       let warning = 'Ignoring g:copilot_node_command: Node.js ' . node_version.string . ' is end-of-life'
@@ -436,8 +437,9 @@ function! s:Command() abort
   if !get(g:, 'copilot_ignore_node_version')
     if node_version.major == 0
       return [v:null, node_version.string, 'Could not determine Node.js version']
-    elseif node_version.major < 16
-      return [v:null, node_version.string, 'Node.js version 16.x or newer required but found ' . node_version.string]
+    elseif node_version.major < 16 || node_version.major == 16 && node_version.minor < 14
+      " 16.14+ still works for now, but is end-of-life
+      return [v:null, node_version.string, 'Node.js version 18.x or newer required but found ' . node_version.string]
     endif
   endif
   let agent = get(g:, 'copilot_agent_command', '')
@@ -447,7 +449,7 @@ function! s:Command() abort
       return [v:null, node_version.string, 'Could not find dist/agent.js (bad install?)']
     endif
   endif
-  return [node + [agent], node_version.string, warning]
+  return [node + [agent, '--stdio'], node_version.string, warning]
 endfunction
 
 function! s:UrlDecode(str) abort
@@ -490,13 +492,7 @@ endfunction
 
 function! s:GetCapabilitiesResult(result, agent) abort
   let a:agent.capabilities = get(a:result, 'capabilities', {})
-  let info = deepcopy(copilot#agent#EditorInfo())
-  let info.editorInfo.version .= ' + Node.js ' . a:agent.node_version
-  if has_key(a:agent, 'node_version_warning')
-    let info.editorInfo.version .= ' (ignored g:copilot_node_command)'
-  elseif !empty(get(g:, 'copilot_node_command', ''))
-    let info.editorInfo.version .= ' (used g:copilot_node_command)'
-  endif
+  let info = copilot#agent#EditorInfo()
   call a:agent.Request('setEditorInfo', extend({'editorConfiguration': a:agent.editorConfiguration}, info))
 endfunction
 
