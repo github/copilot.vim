@@ -5,7 +5,7 @@ let g:autoloaded_copilot_agent = 1
 
 scriptencoding utf-8
 
-let s:plugin_version = '1.11.0'
+let s:plugin_version = '1.11.1'
 
 let s:error_exit = -1
 
@@ -437,8 +437,8 @@ function! s:Command() abort
   if !get(g:, 'copilot_ignore_node_version')
     if node_version.major == 0
       return [v:null, node_version.string, 'Could not determine Node.js version']
-    elseif node_version.major < 16 || node_version.major == 16 && node_version.minor < 14
-      " 16.14+ still works for now, but is end-of-life
+    elseif node_version.major < 16 || node_version.major == 16 && node_version.minor < 14 || node_version.major == 17 && node_version.minor < 3
+      " 16.14+ and 17.3+ still work for now, but are end-of-life
       return [v:null, node_version.string, 'Node.js version 18.x or newer required but found ' . node_version.string]
     endif
   endif

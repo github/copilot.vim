@@ -25,7 +25,7 @@ function! s:Render(panel_id) abort
   else
     let target = get(state, 'count_target', '?')
     let received = has_key(state, 'status') ? target : len(sorted)
-    let lines = ['Synthesizing ' . received . '/' . target . ' solutions (Duplicates hidden)']
+    let lines = ['Synthesiz' . (has_key(state, 'status') ? 'ed ' : 'ing ') . received . '/' . target . ' solutions (Duplicates hidden)']
   endif
   if len(sorted)
     call add(lines, 'Press <CR> on a solution to accept')
