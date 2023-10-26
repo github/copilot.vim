@@ -51,7 +51,7 @@ function! copilot#logger#Error(...) abort
 endfunction
 
 function! copilot#logger#Exception() abort
-  if !empty(v:exception)
+  if !empty(v:exception) && v:exception !=# 'Vim:Interrupt'
     call copilot#logger#Error('Exception: ' . v:exception . ' @ ' . v:throwpoint)
     let agent = copilot#RunningAgent()
     if !empty(agent)

@@ -5,7 +5,7 @@ let g:autoloaded_copilot_agent = 1
 
 scriptencoding utf-8
 
-let s:plugin_version = '1.11.1'
+let s:plugin_version = '1.11.2'
 
 let s:error_exit = -1
 
@@ -58,14 +58,18 @@ function! s:AgentNotify(method, params) dict abort
   return v:true
 endfunction
 
+function! s:IsFinished(request) abort
+  return a:request.status !=# 'running' && empty(get(a:request, 'waiting', {}))
+endfunction
+
 function! s:RequestWait() dict abort
-  while self.status ==# 'running'
-    sleep 1m
-  endwhile
-  while !empty(get(self, 'waiting', {}))
-    sleep 1m
-  endwhile
-  return self
+  if exists('*wait')
+    call wait(-1, function('s:IsFinished', [self]), 2)
+  else
+    while !s:IsFinished(self)
+      sleep 2m
+    endwhile
+  endif
 endfunction
 
 function! s:RequestAwait() dict abort
@@ -423,7 +427,7 @@ function! s:Command() abort
   endif
   let node_version = s:GetNodeVersion(node)
   let warning = ''
-  if node_version.major < 18 && get(node, 0, '') !=# 'node' && executable('node')
+  if !get(g:, 'copilot_ignore_node_version') && node_version.major < 18 && get(node, 0, '') !=# 'node' && executable('node')
     let node_version_from_path = s:GetNodeVersion(['node'])
     if node_version_from_path.major >= 18
       let warning = 'Ignoring g:copilot_node_command: Node.js ' . node_version.string . ' is end-of-life'
@@ -506,10 +510,10 @@ function! s:GetCapabilitiesError(error, agent) abort
 endfunction
 
 function! s:AgentStartupError() dict abort
-  while has_key(self, 'job') && !has_key(self, 'startup_error') && !has_key(self, 'capabilities')
+  while (has_key(self, 'job') || has_key(self, 'client_id')) && !has_key(self, 'startup_error') && !has_key(self, 'capabilities')
     sleep 10m
   endwhile
-  if has_key(self, 'capabilities') || has_key(self, 'client_id')
+  if has_key(self, 'capabilities')
     return ''
   else
     return get(self, 'startup_error', 'Something unexpected went wrong spawning the agent')

@@ -173,8 +173,11 @@ function! s:BufferDisabled() abort
     return empty(b:copilot_enabled) ? 4 : 0
   endif
   let short = empty(&l:filetype) ? '.' : split(&l:filetype, '\.', 1)[0]
-  let config = get(g:, 'copilot_filetypes', {})
-  if type(config) == v:t_dict && has_key(config, &l:filetype)
+  let config = {}
+  if type(get(g:, 'copilot_filetypes')) == v:t_dict
+    let config = g:copilot_filetypes
+  endif
+  if has_key(config, &l:filetype)
     return empty(config[&l:filetype])
   elseif has_key(config, short)
     return empty(config[short])

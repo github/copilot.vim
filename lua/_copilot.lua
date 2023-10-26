@@ -23,7 +23,9 @@ copilot.lsp_start_client = function(cmd, handler_names)
       vim.call('copilot#agent#LspInit', client.id, initialize_result)
     end,
     on_exit = function(code, signal, client_id)
-      vim.call('copilot#agent#LspExit', client_id, code, signal)
+      vim.schedule(function()
+        vim.call('copilot#agent#LspExit', client_id, code, signal)
+      end)
     end
   })
   return id
