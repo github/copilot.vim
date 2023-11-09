@@ -13,7 +13,7 @@ copilot.lsp_start_client = function(cmd, handler_names)
   end
   id = vim.lsp.start_client({
     cmd = cmd,
-    cmd_cwd = vim.fn.expand('%:p:h'),
+    cmd_cwd = vim.fn.getcwd(),
     name = 'copilot',
     handlers = handlers,
     get_language_id = function(bufnr, filetype)
