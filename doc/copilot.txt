@@ -130,7 +130,6 @@ Lua version:
 >
         vim.keymap.set('i', '<C-L>', '<Plug>(copilot-accept-word)')
 <
-
                                                 *copilot-i_CTRL-]*
 <C-]>                   Dismiss the current suggestion.
 <Plug>(copilot-dismiss)

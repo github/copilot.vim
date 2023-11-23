@@ -95,7 +95,7 @@ if !get(g:, 'copilot_no_maps')
     if empty(mapcheck('<M-Right>', 'i'))
       imap <M-Right> <Plug>(copilot-accept-word)
     endif
-    if empty(mapcheck('<M-Down>', 'i'))
+    if empty(mapcheck('<M-C-Right>', 'i'))
       imap <M-Down> <Plug>(copilot-accept-line)
     endif
   finally
