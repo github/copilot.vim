@@ -13,7 +13,7 @@ copilot.lsp_start_client = function(cmd, handler_names)
   end
   id = vim.lsp.start_client({
     cmd = cmd,
-    cmd_cwd = vim.fn.expand('~'),
+    cmd_cwd = vim.call('copilot#job#Cwd'),
     name = 'copilot',
     handlers = handlers,
     get_language_id = function(bufnr, filetype)
@@ -35,10 +35,9 @@ copilot.lsp_request = function(client_id, method, params)
   local client = vim.lsp.get_client_by_id(client_id)
   if not client then return end
   vim.lsp.buf_attach_client(0, client_id)
-  local bufnr
   for _, doc in ipairs({params.doc, params.textDocument}) do
     if doc and type(doc.uri) == 'number' then
-      bufnr = doc.uri
+      local bufnr = doc.uri
       vim.lsp.buf_attach_client(bufnr, client_id)
       doc.uri = vim.uri_from_bufnr(bufnr)
       doc.version = vim.lsp.util.buf_versions[bufnr]
@@ -47,7 +46,7 @@ copilot.lsp_request = function(client_id, method, params)
   local _, id
   _, id = client.request(method, params, function(err, result)
     vim.call('copilot#agent#LspResponse', client_id, {id = id, error = err, result = result})
-  end, bufnr)
+  end)
   return id
 end
 

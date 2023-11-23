@@ -459,11 +459,18 @@ function! copilot#Accept(...) abort
   let s = copilot#GetDisplayedSuggestion()
   if !empty(s.text)
     unlet! b:_copilot
-    call copilot#Request('notifyAccepted', {'uuid': s.uuid})
+    let text = ''
+    if a:0 > 1
+      let text = substitute(matchstr(s.text, "\n*" . '\%(' . a:2 .'\)'), "\n*$", '', '')
+    endif
+    if empty(text)
+      let text = s.text
+    endif
+    call copilot#Request('notifyAccepted', {'uuid': s.uuid, 'acceptedLength': copilot#doc#UTF16Width(text)})
     call s:ClearPreview()
-    let s:suggestion_text = s.text
+    let s:suggestion_text = text
     return repeat("\<Left>\<Del>", s.outdentSize) . repeat("\<Del>", s.deleteSize) .
-            \ "\<C-R>\<C-O>=copilot#TextQueuedForInsertion()\<CR>\<End>"
+            \ "\<C-R>\<C-O>=copilot#TextQueuedForInsertion()\<CR>" . (a:0 > 1 ? '' : "\<End>")
   endif
   let default = get(g:, 'copilot_tab_fallback', pumvisible() ? "\<C-N>" : "\t")
   if !a:0
@@ -481,6 +488,14 @@ function! copilot#Accept(...) abort
   endif
 endfunction
 
+function! copilot#AcceptWord(...) abort
+  return copilot#Accept(a:0 ? a:1 : '', '\%(\k\@!.\)*\k*')
+endfunction
+
+function! copilot#AcceptLine(...) abort
+  return copilot#Accept(a:0 ? a:1 : "\r", "[^\n]\\+")
+endfunction
+
 function! s:BrowserCallback(into, code) abort
   let a:into.code = a:code
 endfunction
@@ -488,12 +503,12 @@ endfunction
 function! copilot#Browser() abort
   if type(get(g:, 'copilot_browser')) == v:t_list
     return copy(g:copilot_browser)
+  elseif type(get(g:, 'browser_command')) == v:t_list
+    return copy(g:browser_command)
   elseif has('win32') && executable('rundll32')
     return ['rundll32', 'url.dll,FileProtocolHandler']
   elseif isdirectory('/private') && executable('/usr/bin/open')
     return ['/usr/bin/open']
-  elseif executable('gio')
-    return ['gio', 'open']
   elseif executable('xdg-open')
     return ['xdg-open']
   else

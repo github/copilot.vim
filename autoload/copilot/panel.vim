@@ -85,8 +85,13 @@ function! copilot#panel#Accept(...) abort
       return 'echoerr "Buffer has changed since synthesizing solution"'
     endif
     let lines = split(solution.displayText, "\n", 1)
+    let old_first = getline(solution.range.start.line + 1)
+    let lines[0] = strpart(old_first, 0, copilot#doc#UTF16ToByteIdx(old_first, solution.range.start.character)) . lines[0]
+    let old_last = getline(solution.range.end.line + 1)
+    let lines[-1] .= strpart(old_last, copilot#doc#UTF16ToByteIdx(old_last, solution.range.start.character))
     call setbufline(state.bufnr, solution.range.start.line + 1, lines[0])
     call appendbufline(state.bufnr, solution.range.start.line + 1, lines[1:-1])
+    call copilot#Request('notifyAccepted', {'uuid': solution.solutionId})
     bwipeout
     let win = bufwinnr(state.bufnr)
     if win > 0

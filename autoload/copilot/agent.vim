@@ -5,7 +5,7 @@ let g:autoloaded_copilot_agent = 1
 
 scriptencoding utf-8
 
-let s:plugin_version = '1.11.4'
+let s:plugin_version = '1.12.0'
 
 let s:error_exit = -1
 
@@ -44,13 +44,9 @@ function! s:LogSend(request, line) abort
   return '--> ' . a:line
 endfunction
 
-let s:chansend = function(exists('*chansend') ? 'chansend' : 'ch_sendraw')
 function! s:Send(agent, request) abort
-  let request = extend({'jsonrpc': '2.0'}, a:request, 'keep')
-  let body = json_encode(request)
-  call s:chansend(a:agent.job, "Content-Length: " . len(body) . "\r\n\r\n" . body)
-  call copilot#logger#Trace(function('s:LogSend', [request, body]))
-  return request
+  call ch_sendexpr(a:agent.job, a:request)
+  return a:request
 endfunction
 
 function! s:AgentNotify(method, params) dict abort
@@ -142,6 +138,12 @@ function! s:BufferText(bufnr) abort
   return join(getbufline(a:bufnr, 1, '$'), "\n") . "\n"
 endfunction
 
+function! s:ShowMessageRequest(params) abort
+  let choice = inputlist([a:params.message . "\n\nRequest Actions:"] +
+        \ map(copy(get(a:params, 'actions', [])), { i, v -> (i + 1) . '. ' . v.title}))
+  return choice > 0 ? get(a:params.actions, choice - 1, v:null) : v:null
+endfunction
+
 function! s:AgentRequest(method, params, ...) dict abort
   let s:id += 1
   let request = {'method': a:method, 'params': deepcopy(a:params), 'id': s:id}
@@ -224,32 +226,28 @@ function! s:DispatchMessage(agent, handler, id, params, ...) abort
 endfunction
 
 function! s:OnMessage(agent, body, ...) abort
-  call copilot#logger#Trace({ -> '<-- ' . a:body})
-  let response = json_decode(a:body)
-  if type(response) != v:t_dict
-    return
+  if !has_key(a:body, 'method')
+    return s:OnResponse(a:agent, a:body)
   endif
-  return s:OnResponse(a:agent, response)
+  let request = a:body
+  let id = get(request, 'id', v:null)
+  let params = get(request, 'params', v:null)
+  if empty(id)
+    if has_key(a:agent.notifications, request.method)
+      call timer_start(0, { _ -> a:agent.notifications[request.method](params) })
+    elseif request.method ==# 'LogMessage'
+      call copilot#logger#Raw(get(params, 'level', 3), get(params, 'message', ''))
+    endif
+  elseif has_key(a:agent.methods, request.method)
+    call timer_start(0, function('s:DispatchMessage', [a:agent, a:agent.methods[request.method], id, params]))
+  else
+    return s:Send(a:agent, {"id": id, "error": {"code": -32700, "message": "Method not found: " . request.method}})
+  endif
 endfunction
 
 function! s:OnResponse(agent, response, ...) abort
   let response = a:response
-  let id = get(response, 'id', v:null)
-  if has_key(response, 'method')
-    let params = get(response, 'params', v:null)
-    if empty(id)
-      if has_key(a:agent.notifications, response.method)
-        call timer_start(0, { _ -> a:agent.notifications[response.method](params) })
-      elseif response.method ==# 'LogMessage'
-        call copilot#logger#Raw(get(params, 'level', 3), get(params, 'message', ''))
-      endif
-    elseif has_key(a:agent.methods, response.method)
-      call timer_start(0, function('s:DispatchMessage', [a:agent, a:agent.methods[response.method], id, params]))
-    else
-      return s:Send(a:agent, {"id": id, "error": {"code": -32700, "message": "Method not found: " . response.method}})
-    endif
-    return
-  endif
+  let id = get(a:response, 'id', v:null)
   if !has_key(a:agent.requests, id)
     return
   endif
@@ -275,44 +273,11 @@ function! s:OnResponse(agent, response, ...) abort
   endif
 endfunction
 
-function! s:OnOut(agent, state, data) abort
-  let a:state.buffer .= a:data
-  while 1
-    if a:state.mode ==# 'body'
-      let content_length = a:state.headers['content-length']
-      if strlen(a:state.buffer) >= content_length
-        let headers = remove(a:state, 'headers')
-        let a:state.mode = 'headers'
-        let a:state.headers = {}
-        let body = strpart(a:state.buffer, 0, content_length)
-        let a:state.buffer = strpart(a:state.buffer, content_length)
-        call timer_start(0, function('s:OnMessage', [a:agent, body]))
-      else
-        return
-      endif
-    elseif a:state.mode ==# 'headers' && a:state.buffer =~# "\n"
-      let line = matchstr(a:state.buffer, "^.[^\n]*")
-      let a:state.buffer = strpart(a:state.buffer, strlen(line) + 1)
-      let match = matchlist(line, '^\([^:]\+\): \(.\{-\}\)\r$')
-      if len(match)
-        let a:state.headers[tolower(match[1])] = match[2]
-      elseif line =~# "^\r\\=$"
-        let a:state.mode = 'body'
-      else
-        call copilot#logger#Error("Invalid header: " . line)
-        call a:agent.Close()
-      endif
-    else
-      return
-    endif
-  endwhile
-endfunction
-
-function! s:OnErr(agent, line) abort
+function! s:OnErr(agent, line, ...) abort
   call copilot#logger#Debug('<-! ' . a:line)
 endfunction
 
-function! s:OnExit(agent, code) abort
+function! s:OnExit(agent, code, ...) abort
   let a:agent.exit_status = a:code
   if has_key(a:agent, 'job')
     call remove(a:agent, 'job')
@@ -384,11 +349,11 @@ function! s:LspNotify(method, params) dict abort
   return v:lua.require'_copilot'.rpc_notify(self.id, a:method, a:params)
 endfunction
 
-function! copilot#agent#LspHandle(agent_id, response) abort
+function! copilot#agent#LspHandle(agent_id, request) abort
   if !has_key(s:instances, a:agent_id)
     return
   endif
-  call s:OnResponse(s:instances[a:agent_id], a:response)
+  call s:OnMessage(s:instances[a:agent_id], a:request)
 endfunction
 
 function! s:GetNodeVersion(command) abort
@@ -550,10 +515,15 @@ function! copilot#agent#New(...) abort
   else
     let state = {'headers': {}, 'mode': 'headers', 'buffer': ''}
     let instance.open_buffers = {}
-    let instance.job = copilot#job#Stream(command,
-          \ function('s:OnOut', [instance, state]),
-          \ function('s:OnErr', [instance]),
-          \ function('s:OnExit', [instance]))
+    let instance.methods = extend({'window/showMessageRequest': function('s:ShowMessageRequest')}, instance.methods)
+    let instance.job = job_start(command, {
+          \ 'cwd': copilot#job#Cwd(),
+          \ 'in_mode': 'lsp',
+          \ 'out_mode': 'lsp',
+          \ 'out_cb': { j, d -> timer_start(0, function('s:OnMessage', [instance, d])) },
+          \ 'err_cb': { j, d -> timer_start(0, function('s:OnErr', [instance, d])) },
+          \ 'exit_cb': { j, d -> timer_start(0, function('s:OnExit', [instance, d])) },
+          \ })
     let instance.id = exists('*jobpid') ? jobpid(instance.job) : job_info(instance.job).process
     let request = instance.Request('initialize', {'capabilities': {'workspace': {'workspaceFolders': v:true}}}, function('s:GetCapabilitiesResult'), function('s:GetCapabilitiesError'), instance)
   endif
