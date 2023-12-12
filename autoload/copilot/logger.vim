@@ -55,14 +55,17 @@ function! copilot#logger#Exception() abort
     call copilot#logger#Error('Exception: ' . v:exception . ' @ ' . v:throwpoint)
     let agent = copilot#RunningAgent()
     if !empty(agent)
-      if v:throwpoint =~# '[\/]'
-        let throwpoint = '[redacted]'
-      else
-        let throwpoint = v:throwpoint
-      endif
+      let stacklines = []
+      for frame in split(substitute(substitute(v:throwpoint, ', \S\+ \(\d\+\)$', '[\1]', ''), '^function ', '', ''), '\.\@<!\.\.\.\@!')
+        if frame =~# '[\/]'
+          call add(stacklines, '[redacted]')
+        else
+          call add(stacklines, substitute(frame, '^<SNR>\d\+_', '<SID>', ''))
+        endif
+      endfor
       call agent.Request('telemetry/exception', {
             \ 'origin': 'copilot.vim',
-            \ 'stacktrace': v:exception . ' @ ' . throwpoint,
+            \ 'stacktrace': join([v:exception] + stacklines, "\n")
             \ })
     endif
   endif

@@ -1,20 +1,26 @@
 local copilot = {}
 
 copilot.lsp_start_client = function(cmd, handler_names)
+  local capabilities = vim.lsp.protocol.make_client_capabilities()
   local handlers = {}
   local id
   for _, name in ipairs(handler_names) do
     handlers[name] = function(err, result)
       if result then
         local retval = vim.call('copilot#agent#LspHandle', id, {method = name, params = result})
-        if retval ~= 0 then return retval end
+        if type(retval) == 'table' then return retval.result, retval.error end
       end
+    end
+    if name:match('^copilot/') then
+      capabilities.copilot = capabilities.copilot or {}
+      capabilities.copilot[name:match('^copilot/(.*)$')] = true
     end
   end
   id = vim.lsp.start_client({
     cmd = cmd,
     cmd_cwd = vim.call('copilot#job#Cwd'),
     name = 'copilot',
+    capabilities = capabilities,
     handlers = handlers,
     get_language_id = function(bufnr, filetype)
       return vim.call('copilot#doc#LanguageForFileType', filetype)
