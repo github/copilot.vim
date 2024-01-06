@@ -400,10 +400,10 @@ endfunction
 
 function! s:Trigger(bufnr, timer) abort
   let timer = get(g:, '_copilot_timer', -1)
-  unlet! g:_copilot_timer
   if a:bufnr !=# bufnr('') || a:timer isnot# timer || mode() !=# 'i'
     return
   endif
+  unlet! g:_copilot_timer
   return copilot#Suggest()
 endfunction
 
