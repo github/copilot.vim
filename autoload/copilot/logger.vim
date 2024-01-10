@@ -1,8 +1,3 @@
-if exists('g:autoloaded_copilot_log')
-  finish
-endif
-let g:autoloaded_copilot_log = 1
-
 if !exists('s:log_file')
   let s:log_file = tempname() . '-copilot.log'
   try
@@ -50,22 +45,32 @@ function! copilot#logger#Error(...) abort
   call copilot#logger#Raw(3, a:000)
 endfunction
 
-function! copilot#logger#Exception() abort
+function! copilot#logger#Exception(...) abort
   if !empty(v:exception) && v:exception !=# 'Vim:Interrupt'
     call copilot#logger#Error('Exception: ' . v:exception . ' @ ' . v:throwpoint)
     let agent = copilot#RunningAgent()
     if !empty(agent)
+      let [_, type, code, message; __] = matchlist(v:exception, '^\%(\(^[[:alnum:]_#]\+\)\%((\a\+)\)\=\%(\(:E-\=\d\+\)\)\=:\s*\)\=\(.*\)$')
       let stacklines = []
-      for frame in split(substitute(substitute(v:throwpoint, ', \S\+ \(\d\+\)$', '[\1]', ''), '^function ', '', ''), '\.\@<!\.\.\.\@!')
-        if frame =~# '[\/]'
-          call add(stacklines, '[redacted]')
+      for frame in split(substitute(v:throwpoint, ', \S\+ \(\d\+\)$', '[\1]', ''), '\.\@<!\.\.\.\@!')
+        let fn_line = matchlist(frame, '^\%(function \)\=\(\S\+\)\[\(\d+\)\]$')
+        if !empty(fn_line)
+          call add(stacklines, {'function': substitute(fn_line[1], '^<SNR>\d\+_', '<SID>', ''), 'lineno': +fn_line[2]})
+        elseif frame =~# ' Autocmds for "\*"$'
+          call add(stacklines, {'function': frame})
+        elseif frame =~# ' Autocmds for ".*"$'
+          call add(stacklines, {'function': substitute(frame, ' for ".*"$', ' for "[redacted]"', '')})
         else
-          call add(stacklines, substitute(frame, '^<SNR>\d\+_', '<SID>', ''))
+          call add(stacklines, {'function': '[redacted]'})
         endif
       endfor
-      call agent.Request('telemetry/exception', {
-            \ 'origin': 'copilot.vim',
-            \ 'stacktrace': join([v:exception] + stacklines, "\n")
+      return agent.Request('telemetry/exception', {
+            \ 'origin': a:0 ? a:1 : 'none',
+            \ 'platform': 'other',
+            \ 'exception_detail': [{
+            \ 'type': type . code,
+            \ 'value': message,
+            \ 'stacktrace': stacklines}]
             \ })
     endif
   endif

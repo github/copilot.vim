@@ -1,13 +1,8 @@
-if exists('g:autoloaded_copilot_prompt')
-  finish
-endif
-let g:autoloaded_copilot_prompt = 1
-
 scriptencoding utf-8
 
 let s:slash = exists('+shellslash') ? '\' : '/'
 
-function copilot#doc#UTF16Width(str) abort
+function! copilot#doc#UTF16Width(str) abort
   return strchars(substitute(a:str, "\\%#=2[^\u0001-\uffff]", "  ", 'g'))
 endfunction
 
@@ -60,7 +55,7 @@ let s:language_normalization_map = {
       \ "sh":              "shellscript",
       \ "text":            "plaintext",
       \ }
-function copilot#doc#LanguageForFileType(filetype) abort
+function! copilot#doc#LanguageForFileType(filetype) abort
   let filetype = substitute(a:filetype, '\..*', '', '')
   return get(s:language_normalization_map, empty(filetype) ? "text" : filetype, filetype)
 endfunction

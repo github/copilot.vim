@@ -1,11 +1,6 @@
-if exists('g:autoloaded_copilot_agent')
-  finish
-endif
-let g:autoloaded_copilot_agent = 1
-
 scriptencoding utf-8
 
-let s:plugin_version = '1.13.0'
+let s:plugin_version = '1.14.0'
 
 let s:error_exit = -1
 
@@ -86,7 +81,7 @@ function! s:RequestAwait() dict abort
   if has_key(self, 'result')
     return self.result
   endif
-  throw 'copilot#agent(' . self.error.code . '): ' . self.error.message
+  throw 'copilot#agent:E' . self.error.code . ': ' . self.error.message
 endfunction
 
 function! s:RequestAgent() dict abort
@@ -240,14 +235,14 @@ function! s:RequestCancel() dict abort
   return self
 endfunction
 
-function! s:DispatchMessage(agent, handler, id, params, ...) abort
+function! s:DispatchMessage(agent, method, handler, id, params, ...) abort
   try
     let response = {'result': call(a:handler, [a:params])}
     if response.result is# 0
       let response.result = v:null
     endif
   catch
-    call copilot#logger#Exception()
+    call copilot#logger#Exception('lsp.request.' . a:method)
     let response = {'error': {'code': -32000, 'message': v:exception}}
   endtry
   if !empty(a:id)
@@ -264,7 +259,7 @@ function! s:OnMessage(agent, body, ...) abort
   let id = get(request, 'id', v:null)
   let params = get(request, 'params', v:null)
   if has_key(a:agent.methods, request.method)
-    return s:DispatchMessage(a:agent, a:agent.methods[request.method], id, params)
+    return s:DispatchMessage(a:agent, request.method, a:agent.methods[request.method], id, params)
   elseif !empty(id)
     call s:Send(a:agent, {"id": id, "error": {"code": -32700, "message": "Method not found: " . request.method}})
   endif
@@ -387,6 +382,13 @@ function! s:Command() abort
   if !has('nvim-0.6') && v:version < 900
     return [v:null, '', 'Vim version too old']
   endif
+  let agent = get(g:, 'copilot_agent_command', '')
+  if empty(agent) || !filereadable(agent)
+    let agent = s:root . '/dist/agent.js'
+    if !filereadable(agent)
+      return [v:null, '', 'Could not find dist/agent.js (bad install?)']
+    endif
+  endif
   let node = get(g:, 'copilot_node_command', '')
   if empty(node)
     let node = ['node']
@@ -400,9 +402,12 @@ function! s:Command() abort
       return [v:null, '', 'Node.js executable `' . get(node, 0, '') . "' not found"]
     endif
   endif
+  if get(g:, 'copilot_ignore_node_version')
+    return [node + [agent, '--stdio'], '', '']
+  endif
   let node_version = s:GetNodeVersion(node)
   let warning = ''
-  if !get(g:, 'copilot_ignore_node_version') && node_version.major < 18 && get(node, 0, '') !=# 'node' && executable('node')
+  if node_version.major < 18 && get(node, 0, '') !=# 'node' && executable('node')
     let node_version_from_path = s:GetNodeVersion(['node'])
     if node_version_from_path.major >= 18
       let warning = 'Ignoring g:copilot_node_command: Node.js ' . node_version.string . ' is end-of-life'
@@ -419,13 +424,6 @@ function! s:Command() abort
     elseif node_version.major < 16 || node_version.major == 16 && node_version.minor < 14 || node_version.major == 17 && node_version.minor < 3
       " 16.14+ and 17.3+ still work for now, but are end-of-life
       return [v:null, node_version.string, 'Node.js version 18.x or newer required but found ' . node_version.string]
-    endif
-  endif
-  let agent = get(g:, 'copilot_agent_command', '')
-  if empty(agent) || !filereadable(agent)
-    let agent = s:root . '/dist/agent.js'
-    if !filereadable(agent)
-      return [v:null, node_version.string, 'Could not find dist/agent.js (bad install?)']
     endif
   endif
   return [node + [agent, '--stdio'], node_version.string, warning]
@@ -520,7 +518,9 @@ function! copilot#agent#New(...) abort
       let instance.node_version_warning = command_error
     endif
   endif
-  let instance.node_version = node_version
+  if !empty(node_version)
+    let instance.node_version = node_version
+  endif
   if has('nvim')
     call extend(instance, {
         \ 'Close': function('s:LspClose'),

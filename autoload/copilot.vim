@@ -1,8 +1,3 @@
-if exists('g:autoloaded_copilot')
-  finish
-endif
-let g:autoloaded_copilot = 1
-
 scriptencoding utf-8
 
 let s:has_nvim_ghost_text = has('nvim-0.6') && exists('*nvim_buf_get_mark')
@@ -400,10 +395,10 @@ endfunction
 
 function! s:Trigger(bufnr, timer) abort
   let timer = get(g:, '_copilot_timer', -1)
-  unlet! g:_copilot_timer
   if a:bufnr !=# bufnr('') || a:timer isnot# timer || mode() !=# 'i'
     return
   endif
+  unlet! g:_copilot_timer
   return copilot#Suggest()
 endfunction
 
@@ -419,6 +414,7 @@ function! copilot#Schedule(...) abort
   endif
   call s:UpdatePreview()
   let delay = a:0 ? a:1 : get(g:, 'copilot_idle_delay', 15)
+  call timer_stop(get(g:, '_copilot_timer', -1))
   let g:_copilot_timer = timer_start(delay, function('s:Trigger', [bufnr('')]))
 endfunction
 
@@ -713,9 +709,10 @@ function! s:commands.version(opts) abort
   let info = copilot#agent#EditorInfo()
   echo 'copilot.vim ' .info.editorPluginInfo.version
   echo info.editorInfo.name . ' ' . info.editorInfo.version
-  if exists('s:agent.node_version')
-    echo 'dist/agent.js ' . s:agent.Call('getVersion', {}).version
-    echo 'Node.js ' . s:agent.node_version
+  if s:Running()
+    let versions = s:agent.Call('getVersion', {})
+    echo 'dist/agent.js ' . versions.version
+    echo 'Node.js ' . get(s:agent, 'node_version', substitute(get(versions, 'runtimeVersion', '?'), '^node/', '', 'g'))
     call s:NodeVersionWarning()
   else
     echo 'dist/agent.js not running'

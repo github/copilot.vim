@@ -1,8 +1,3 @@
-if exists('g:autoloaded_copilot_panel')
-  finish
-endif
-let g:autoloaded_copilot_panel = 1
-
 scriptencoding utf-8
 
 if !exists('s:panel_id')

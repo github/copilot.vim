@@ -46,7 +46,7 @@ function! s:Event(type) abort
   try
     call call('copilot#On' . a:type, [])
   catch
-    call copilot#logger#Exception()
+    call copilot#logger#Exception('autocmd.' . a:type)
   endtry
 endfunction
 
