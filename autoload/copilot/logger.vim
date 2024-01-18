@@ -65,7 +65,7 @@ function! copilot#logger#Exception(...) abort
         endif
       endfor
       return agent.Request('telemetry/exception', {
-            \ 'origin': a:0 ? a:1 : 'none',
+            \ 'transaction': a:0 ? a:1 : '',
             \ 'platform': 'other',
             \ 'exception_detail': [{
             \ 'type': type . code,

@@ -1,6 +1,6 @@
 scriptencoding utf-8
 
-let s:plugin_version = '1.14.0'
+let s:plugin_version = copilot#version#String()
 
 let s:error_exit = -1
 

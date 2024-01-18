@@ -7,8 +7,10 @@ copilot.lsp_start_client = function(cmd, handler_names)
   for _, name in ipairs(handler_names) do
     handlers[name] = function(err, result)
       if result then
-        local retval = vim.call('copilot#agent#LspHandle', id, {method = name, params = result})
-        if type(retval) == 'table' then return retval.result, retval.error end
+        local retval = vim.call('copilot#agent#LspHandle', id, { method = name, params = result })
+        if type(retval) == 'table' then
+          return retval.result, retval.error
+        end
       end
     end
     if name:match('^copilot/') then
@@ -32,16 +34,18 @@ copilot.lsp_start_client = function(cmd, handler_names)
       vim.schedule(function()
         vim.call('copilot#agent#LspExit', client_id, code, signal)
       end)
-    end
+    end,
   })
   return id
 end
 
 copilot.lsp_request = function(client_id, method, params)
   local client = vim.lsp.get_client_by_id(client_id)
-  if not client then return end
+  if not client then
+    return
+  end
   pcall(vim.lsp.buf_attach_client, 0, client_id)
-  for _, doc in ipairs({params.doc, params.textDocument}) do
+  for _, doc in ipairs({ params.doc, params.textDocument }) do
     if doc and type(doc.uri) == 'number' then
       local bufnr = doc.uri
       pcall(vim.lsp.buf_attach_client, bufnr, client_id)
@@ -51,24 +55,28 @@ copilot.lsp_request = function(client_id, method, params)
   end
   local _, id
   _, id = client.request(method, params, function(err, result)
-    vim.call('copilot#agent#LspResponse', client_id, {id = id, error = err, result = result})
+    vim.call('copilot#agent#LspResponse', client_id, { id = id, error = err, result = result })
   end)
   return id
 end
 
 copilot.rpc_request = function(client_id, method, params)
   local client = vim.lsp.get_client_by_id(client_id)
-  if not client then return end
+  if not client then
+    return
+  end
   local _, id
   _, id = client.rpc.request(method, params, function(err, result)
-    vim.call('copilot#agent#LspResponse', client_id, {id = id, error = err, result = result})
+    vim.call('copilot#agent#LspResponse', client_id, { id = id, error = err, result = result })
   end)
   return id
 end
 
 copilot.rpc_notify = function(client_id, method, params)
   local client = vim.lsp.get_client_by_id(client_id)
-  if not client then return end
+  if not client then
+    return
+  end
   return client.rpc.notify(method, params)
 end
 
