@@ -79,6 +79,10 @@ if !get(g:, 'copilot_no_maps')
     if !has('nvim') && &encoding ==# 'utf-8'
       " avoid 8-bit meta collision with UTF-8 characters
       let s:restore_encoding = 1
+      " Temporary disabling spell checking because cp949 encoding does not have a word list. This
+      " fixes a blocking warning that is shown when opening Vim.
+      let s:restore_spell = &spell
+      set nospell
       set encoding=cp949
     endif
     if empty(mapcheck('<M-]>', 'i'))
@@ -93,6 +97,9 @@ if !get(g:, 'copilot_no_maps')
   finally
     if exists('s:restore_encoding')
       set encoding=utf-8
+    endif
+    if exists('s:restore_spell')
+      set spell
     endif
   endtry
 endif
