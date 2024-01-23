@@ -81,7 +81,7 @@ if !get(g:, 'copilot_no_maps')
     if !has('nvim') && &encoding ==# 'utf-8'
       " avoid 8-bit meta collision with UTF-8 characters
       let s:restore_encoding = 1
-      set encoding=cp949
+      silent noautocmd set encoding=cp949
     endif
     if empty(mapcheck('<M-]>', 'i'))
       imap <M-]> <Plug>(copilot-next)
@@ -100,7 +100,7 @@ if !get(g:, 'copilot_no_maps')
     endif
   finally
     if exists('s:restore_encoding')
-      set encoding=utf-8
+      silent noautocmd set encoding=utf-8
     endif
   endtry
 endif

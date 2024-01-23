@@ -337,7 +337,7 @@ function! copilot#agent#LspResponse(agent_id, opts, ...) abort
 endfunction
 
 function! s:LspRequest(method, params, ...) dict abort
-  let id = v:lua.require'_copilot'.lsp_request(self.id, a:method, a:params)
+  let id = eval("v:lua.require'_copilot'.lsp_request(self.id, a:method, a:params)")
   if id isnot# v:null
     return call('s:SetUpRequest', [self, id, a:method, a:params] + a:000)
   endif
@@ -355,7 +355,7 @@ function! s:LspClose() dict abort
 endfunction
 
 function! s:LspNotify(method, params) dict abort
-  return v:lua.require'_copilot'.rpc_notify(self.id, a:method, a:params)
+  return eval("v:lua.require'_copilot'.rpc_notify(self.id, a:method, a:params)")
 endfunction
 
 function! copilot#agent#LspHandle(agent_id, request) abort
@@ -526,7 +526,7 @@ function! copilot#agent#New(...) abort
         \ 'Close': function('s:LspClose'),
         \ 'Notify': function('s:LspNotify'),
         \ 'Request': function('s:LspRequest')})
-    let instance.client_id = v:lua.require'_copilot'.lsp_start_client(command, keys(instance.methods))
+    let instance.client_id = eval("v:lua.require'_copilot'.lsp_start_client(command, keys(instance.methods))")
     let instance.id = instance.client_id
   else
     let state = {'headers': {}, 'mode': 'headers', 'buffer': ''}

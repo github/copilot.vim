@@ -343,7 +343,7 @@ function! s:UpdatePreview() abort
     call s:ClearPreview()
     if s:has_nvim_ghost_text
       let data = {'id': 1}
-      let data.virt_text_win_col = virtcol('.') - 1
+      let data.virt_text_pos = 'overlay'
       let append = strpart(getline('.'), col('.') - 1 + delete)
       let data.virt_text = [[text[0] . append . repeat(' ', delete - len(text[0])), s:hlgroup]]
       if len(text) > 1
