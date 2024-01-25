@@ -641,7 +641,7 @@ function! s:commands.setup(opts) abort
 
   let status = copilot#Call('checkStatus', {})
   if has_key(status, 'user')
-    let data = {}
+    let data = {'status': 'AlreadySignedIn', 'user': status.user}
   else
     let data = copilot#Call('signInInitiate', {})
   endif
@@ -692,6 +692,8 @@ function! s:commands.setup(opts) abort
     else
       let status = request.result
     endif
+  elseif get(data, 'status', '') isnot# 'AlreadySignedIn'
+    return 'echoerr ' . string('Copilot: Something went wrong')
   endif
 
   let user = get(status, 'user', '<unknown>')

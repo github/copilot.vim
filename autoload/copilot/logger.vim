@@ -53,7 +53,7 @@ function! copilot#logger#Exception(...) abort
       let [_, type, code, message; __] = matchlist(v:exception, '^\%(\(^[[:alnum:]_#]\+\)\%((\a\+)\)\=\%(\(:E-\=\d\+\)\)\=:\s*\)\=\(.*\)$')
       let stacklines = []
       for frame in split(substitute(v:throwpoint, ', \S\+ \(\d\+\)$', '[\1]', ''), '\.\@<!\.\.\.\@!')
-        let fn_line = matchlist(frame, '^\%(function \)\=\(\S\+\)\[\(\d+\)\]$')
+        let fn_line = matchlist(frame, '^\%(function \)\=\(\S\+\)\[\(\d\+\)\]$')
         if !empty(fn_line)
           call add(stacklines, {'function': substitute(fn_line[1], '^<SNR>\d\+_', '<SID>', ''), 'lineno': +fn_line[2]})
         elseif frame =~# ' Autocmds for "\*"$'

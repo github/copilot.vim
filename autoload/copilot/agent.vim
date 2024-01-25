@@ -81,7 +81,7 @@ function! s:RequestAwait() dict abort
   if has_key(self, 'result')
     return self.result
   endif
-  throw 'copilot#agent:E' . self.error.code . ': ' . self.error.message
+  throw 'Copilot:E' . self.error.code . ': ' . self.error.message
 endfunction
 
 function! s:RequestAgent() dict abort
@@ -463,6 +463,9 @@ function! copilot#agent#EditorInfo() abort
       let info.networkProxy.username = s:UrlDecode(matchstr(match[1], '^[^:@]*'))
       let info.networkProxy.password = s:UrlDecode(matchstr(match[1], ':\zs[^@]*'))
     endif
+  endif
+  if type(get(g:, 'copilot_auth_provider_url')) == v:t_string
+    let info.authProvider = {'url': g:copilot_auth_provider_url}
   endif
   return info
 endfunction
