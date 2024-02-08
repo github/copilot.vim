@@ -151,7 +151,7 @@ function! s:BufferText(bufnr) abort
 endfunction
 
 function! s:LogMessage(params) abort
-  call copilot#logger#Raw(get(a:params, 'level', 3), get(a:params, 'message', ''))
+  call copilot#logger#Raw(get(a:params, 'type', 6), get(a:params, 'message', ''))
 endfunction
 
 function! s:ShowMessageRequest(params) abort
@@ -294,7 +294,9 @@ function! s:OnResponse(agent, response, ...) abort
 endfunction
 
 function! s:OnErr(agent, line, ...) abort
-  call copilot#logger#Debug('<-! ' . a:line)
+  if !has_key(a:agent, 'capabilities')
+    call copilot#logger#Bare('<-! ' . a:line)
+  endif
 endfunction
 
 function! s:OnExit(agent, code, ...) abort
@@ -508,7 +510,6 @@ function! copilot#agent#New(...) abort
         \ 'StartupError': function('s:AgentStartupError'),
         \ }
   let instance.methods = extend({
-        \ 'LogMessage': function('s:LogMessage'),
         \ 'window/logMessage': function('s:LogMessage'),
         \ }, get(opts, 'methods', {}))
   let [command, node_version, command_error] = s:Command()

@@ -226,7 +226,7 @@ function! s:SuggestionTextWithAdjustments() abort
     endif
     let line = getline('.')
     let offset = col('.') - 1
-    let choice_text = strpart(line, 0, copilot#doc#UTF16ToByteIdx(line, choice.range.start.character)) . choice.text
+    let choice_text = strpart(line, 0, copilot#doc#UTF16ToByteIdx(line, choice.range.start.character)) . substitute(choice.text, "\n*$", '', '')
     let typed = strpart(line, 0, offset)
     let end_offset = copilot#doc#UTF16ToByteIdx(line, choice.range.end.character)
     if end_offset < 0

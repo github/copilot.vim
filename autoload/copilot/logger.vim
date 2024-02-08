@@ -10,11 +10,14 @@ function! copilot#logger#File() abort
   return s:log_file
 endfunction
 
+let s:level_prefixes = ['', '[ERROR] ', '[WARN] ', '[INFO] ', '[DEBUG] ', '[TRACE] ']
+
 function! copilot#logger#Raw(level, message) abort
-  if $COPILOT_AGENT_VERBOSE !~# '^\%(1\|true\)$' && a:level < 1
+  if $COPILOT_AGENT_VERBOSE !~# '^\%(1\|true\)$' && a:level > 3
     return
   endif
   let lines = type(a:message) == v:t_list ? copy(a:message) : split(a:message, "\n", 1)
+  let lines[0] = strftime('[%Y-%m-%dT%H:%M:%S] ') . get(s:level_prefixes, a:level, '[UNKNOWN] ') . get(lines, 0, '')
   try
     if !filewritable(s:log_file)
       return
@@ -26,15 +29,15 @@ function! copilot#logger#Raw(level, message) abort
 endfunction
 
 function! copilot#logger#Trace(...) abort
-  call copilot#logger#Raw(-1, a:000)
+  call copilot#logger#Raw(5, a:000)
 endfunction
 
 function! copilot#logger#Debug(...) abort
-  call copilot#logger#Raw(0, a:000)
+  call copilot#logger#Raw(4, a:000)
 endfunction
 
 function! copilot#logger#Info(...) abort
-  call copilot#logger#Raw(1, a:000)
+  call copilot#logger#Raw(3, a:000)
 endfunction
 
 function! copilot#logger#Warn(...) abort
@@ -42,7 +45,11 @@ function! copilot#logger#Warn(...) abort
 endfunction
 
 function! copilot#logger#Error(...) abort
-  call copilot#logger#Raw(3, a:000)
+  call copilot#logger#Raw(1, a:000)
+endfunction
+
+function! copilot#logger#Bare(...) abort
+  call copilot#logger#Raw(0, a:000)
 endfunction
 
 function! copilot#logger#Exception(...) abort
