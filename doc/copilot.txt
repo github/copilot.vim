@@ -75,12 +75,13 @@ g:copilot_node_command  Tell Copilot what `node` binary to use with
                               \ "~/.nodenv/versions/18.18.0/bin/node"
 <
                                                 *g:copilot_proxy*
-g:copilot_proxy         Tell Copilot what proxy server to use.  This is a
-                        string in the format of `hostname:port` or
-                        `username:password@host:port`.
+g:copilot_proxy         Tell Copilot what proxy server to use.
 >
-                        let g:copilot_proxy = 'localhost:3128'
+                        let g:copilot_proxy = 'http://localhost:3128'
 <
+                        If this is not set, Copilot will use the value of
+                        environment variables like $HTTPS_PROXY.
+
                                                 *g:copilot_proxy_strict_ssl*
 g:copilot_proxy_strict_ssl
                         Corporate proxies sometimes use a man-in-the-middle
@@ -90,6 +91,10 @@ g:copilot_proxy_strict_ssl
 >
                         let g:copilot_proxy_strict_ssl = v:false
 <
+                        You can also tell Node.js to disable SSL verification
+                        by setting the $NODE_TLS_REJECT_UNAUTHORIZED
+                        environment variable to "0".
+
 MAPS                                            *copilot-maps*
 
                                                 *copilot-i_<Tab>*

@@ -148,9 +148,6 @@ function! copilot#Dismiss() abort
 endfunction
 
 let s:filetype_defaults = {
-      \ 'yaml': 0,
-      \ 'markdown': 0,
-      \ 'help': 0,
       \ 'gitcommit': 0,
       \ 'gitrebase': 0,
       \ 'hgcommit': 0,
@@ -652,20 +649,16 @@ function! s:commands.setup(opts) abort
       let @+ = data.userCode
       let @* = data.userCode
     endif
-    call s:Echo("First copy your one-time code: " . data.userCode)
+    let codemsg = "First copy your one-time code: " . data.userCode . "\n"
     try
       if len(&mouse)
         let mouse = &mouse
         set mouse=
       endif
       if get(a:opts, 'bang')
-        call s:Echo("In your browser, visit " . uri)
+        call s:Echo(codemsg . "In your browser, visit " . uri)
       elseif len(browser)
-        call s:Echo("Press ENTER to open GitHub in your browser")
-        let c = getchar()
-        while c isnot# 13 && c isnot# 10 && c isnot# 0
-          let c = getchar()
-        endwhile
+        call input(codemsg . "Press ENTER to open GitHub in your browser")
         let status = {}
         call copilot#job#Stream(browser + [uri], v:null, v:null, function('s:BrowserCallback', [status]))
         let time = reltime()
@@ -678,9 +671,9 @@ function! s:commands.setup(opts) abort
           call s:Echo("Opened " . uri)
         endif
       else
-        call s:Echo("Could not find browser.  Visit " . uri)
+        call s:Echo(codemsg . "Could not find browser.  Visit " . uri)
       endif
-      call s:Echo("Waiting (could take up to 5 seconds)")
+      call s:Echo("Waiting (could take up to 10 seconds)")
       let request = copilot#Request('signInConfirm', {'userCode': data.userCode}).Wait()
     finally
       if exists('mouse')
