@@ -428,7 +428,7 @@ function! s:Command() abort
       return [v:null, node_version.string, 'Node.js version 18.x or newer required but found ' . node_version.string]
     endif
   endif
-  return [node + [agent, '--stdio'], node_version.string, warning]
+  return [node + agent + ['--stdio'], node_version.string, warning]
 endfunction
 
 function! s:UrlDecode(str) abort
