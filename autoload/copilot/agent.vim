@@ -435,7 +435,7 @@ function! s:UrlDecode(str) abort
   return substitute(a:str, '%\(\x\x\)', '\=iconv(nr2char("0x".submatch(1)), "utf-8", "latin1")', 'g')
 endfunction
 
-function! s:EditorInfo() abort
+function! copilot#agent#EditorInfo() abort
   if !exists('s:editor_version')
     if has('nvim')
       let s:editor_version = matchstr(execute('version'), 'NVIM v\zs[^[:space:]]\+')
@@ -444,6 +444,10 @@ function! s:EditorInfo() abort
     endif
   endif
   return {'name': has('nvim') ? 'Neovim': 'Vim', 'version': s:editor_version}
+endfunction
+
+function! copilot#agent#EditorPluginInfo() abort
+  return {'name': 'copilot.vim', 'version': s:plugin_version}
 endfunction
 
 function! copilot#agent#Settings() abort
@@ -465,8 +469,8 @@ endfunction
 function! s:InitializeResult(result, agent) abort
   let a:agent.capabilities = get(a:result, 'capabilities', {})
   let info = {
-        \ 'editorInfo': s:EditorInfo(),
-        \ 'editorPluginInfo': {'name': 'copilot.vim', 'version': s:plugin_version},
+        \ 'editorInfo': copilot#agent#EditorInfo(),
+        \ 'editorPluginInfo': copilot#agent#EditorPluginInfo(),
         \ 'editorConfiguration': extend(copilot#agent#Settings(), a:agent.editorConfiguration)}
   call a:agent.Request('setEditorInfo', info)
 endfunction

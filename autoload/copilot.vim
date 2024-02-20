@@ -701,9 +701,9 @@ function! s:commands.help(opts) abort
 endfunction
 
 function! s:commands.version(opts) abort
-  let info = copilot#agent#EditorInfo()
-  echo 'copilot.vim ' .info.editorPluginInfo.version
-  echo info.editorInfo.name . ' ' . info.editorInfo.version
+  echo 'copilot.vim ' .copilot#agent#EditorPluginInfo().version
+  let editorInfo = copilot#agent#EditorInfo()
+  echo editorInfo.name . ' ' . editorInfo.version
   if s:Running()
     let versions = s:agent.Call('getVersion', {})
     echo 'dist/agent.js ' . versions.version
