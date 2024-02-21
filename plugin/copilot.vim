@@ -96,7 +96,7 @@ if !get(g:, 'copilot_no_maps')
       imap <M-Right> <Plug>(copilot-accept-word)
     endif
     if empty(mapcheck('<M-C-Right>', 'i'))
-      imap <M-Down> <Plug>(copilot-accept-line)
+      imap <M-C-Right> <Plug>(copilot-accept-line)
     endif
   finally
     if exists('s:restore_encoding')
