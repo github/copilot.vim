@@ -1,7 +1,15 @@
 local copilot = {}
 
-copilot.lsp_start_client = function(cmd, handler_names, init_options)
-  local handlers = {}
+local showDocument = function(err, result, ctx, _)
+  if result.external and vim.g.copilot_browser then
+    return vim.fn['copilot#handlers#window_showDocument'](result.uri)
+  else
+    return vim.lsp.handlers['window/showDocument'](err, result, ctx, _)
+  end
+end
+
+copilot.lsp_start_client = function(cmd, handler_names, opts)
+  local handlers = {['window/showDocument'] = showDocument}
   local id
   for _, name in ipairs(handler_names) do
     handlers[name] = function(err, result)
@@ -17,7 +25,7 @@ copilot.lsp_start_client = function(cmd, handler_names, init_options)
     cmd = cmd,
     cmd_cwd = vim.call('copilot#job#Cwd'),
     name = 'copilot',
-    init_options = init_options,
+    init_options = opts.initializationOptions,
     handlers = handlers,
     get_language_id = function(bufnr, filetype)
       return vim.call('copilot#doc#LanguageForFileType', filetype)

@@ -145,16 +145,6 @@ function! s:BufferText(bufnr) abort
   return join(getbufline(a:bufnr, 1, '$'), "\n") . "\n"
 endfunction
 
-function! s:LogMessage(params) abort
-  call copilot#logger#Raw(get(a:params, 'type', 6), get(a:params, 'message', ''))
-endfunction
-
-function! s:ShowMessageRequest(params) abort
-  let choice = inputlist([a:params.message . "\n\nRequest Actions:"] +
-        \ map(copy(get(a:params, 'actions', [])), { i, v -> (i + 1) . '. ' . v.title}))
-  return choice > 0 ? get(a:params.actions, choice - 1, v:null) : v:null
-endfunction
-
 function! s:SendRequest(agent, request) abort
   if empty(s:Send(a:agent, a:request)) && has_key(a:agent.requests, a:request.id)
     call s:RejectRequest(remove(a:agent.requests, a:request.id), {'code': 257, 'message': 'Write failed'})
@@ -198,7 +188,11 @@ function! s:AgentRequest(method, params, ...) dict abort
     endif
     let doc.version = doc_version
   endfor
-  call timer_start(0, { _ -> s:SendRequest(self, request) })
+  if has_key(self, 'initialization_pending')
+    call add(self.initialization_pending, request)
+  else
+    call timer_start(0, { _ -> s:SendRequest(self, request) })
+  endif
   return call('s:SetUpRequest', [self, s:id, a:method, a:params] + a:000)
 endfunction
 
@@ -255,8 +249,10 @@ function! s:OnMessage(agent, body, ...) abort
   let params = get(request, 'params', v:null)
   if has_key(a:agent.methods, request.method)
     return s:DispatchMessage(a:agent, request.method, a:agent.methods[request.method], id, params)
-  elseif !empty(id)
+  elseif id isnot# v:null
     call s:Send(a:agent, {"id": id, "error": {"code": -32700, "message": "Method not found: " . request.method}})
+  elseif request.method !~# '^\$/'
+    call copilot#logger#Warn('Unexpected notification ' . request.method . ' called with ' . json_encode(params))
   endif
 endfunction
 
@@ -289,7 +285,7 @@ function! s:OnResponse(agent, response, ...) abort
 endfunction
 
 function! s:OnErr(agent, line, ...) abort
-  if !has_key(a:agent, 'capabilities')
+  if !has_key(a:agent, 'serverInfo')
     call copilot#logger#Bare('<-! ' . a:line)
   endif
 endfunction
@@ -467,12 +463,22 @@ function! copilot#agent#Settings() abort
 endfunction
 
 function! s:InitializeResult(result, agent) abort
-  let a:agent.capabilities = get(a:result, 'capabilities', {})
+  let a:agent.serverInfo = get(a:result, 'serverInfo', {})
+  if !has_key(a:agent, 'node_version') && has_key(a:result.serverInfo, 'nodeVersion')
+    let a:agent.node_version = a:result.serverInfo.nodeVersion
+  endif
   let info = {
         \ 'editorInfo': copilot#agent#EditorInfo(),
         \ 'editorPluginInfo': copilot#agent#EditorPluginInfo(),
         \ 'editorConfiguration': extend(copilot#agent#Settings(), a:agent.editorConfiguration)}
+  let pending = get(a:agent, 'initialization_pending', [])
+  if has_key(a:agent, 'initialization_pending')
+    call remove(a:agent, 'initialization_pending')
+  endif
   call a:agent.Request('setEditorInfo', info)
+  for request in pending
+    call timer_start(0, { _ -> s:SendRequest(a:agent, request) })
+  endfor
 endfunction
 
 function! s:InitializeError(error, agent) abort
@@ -485,15 +491,25 @@ function! s:InitializeError(error, agent) abort
 endfunction
 
 function! s:AgentStartupError() dict abort
-  while (has_key(self, 'job') || has_key(self, 'client_id')) && !has_key(self, 'startup_error') && !has_key(self, 'capabilities')
+  while (has_key(self, 'job') || has_key(self, 'client_id')) && !has_key(self, 'startup_error') && !has_key(self, 'serverInfo')
     sleep 10m
   endwhile
-  if has_key(self, 'capabilities')
+  if has_key(self, 'serverInfo')
     return ''
   else
     return get(self, 'startup_error', 'Something unexpected went wrong spawning the agent')
   endif
 endfunction
+
+let s:vim_handlers = {
+      \ 'window/showMessageRequest': function('copilot#handlers#window_showMessageRequest'),
+      \ 'window/showDocument': function('copilot#handlers#window_showDocument'),
+      \ }
+
+let s:vim_capabilities = {
+      \ 'workspace': {'workspaceFolders': v:true},
+      \ 'window': {'showDocument': {'support': v:true}},
+      \ }
 
 function! copilot#agent#New(...) abort
   let opts = a:0 ? a:1 : {}
@@ -507,7 +523,7 @@ function! copilot#agent#New(...) abort
         \ 'StartupError': function('s:AgentStartupError'),
         \ }
   let instance.methods = extend({
-        \ 'window/logMessage': function('s:LogMessage'),
+        \ 'window/logMessage': function('copilot#handlers#window_logMessage'),
         \ }, get(opts, 'methods', {}))
   let [command, node_version, command_error] = s:Command()
   if len(command_error)
@@ -522,23 +538,18 @@ function! copilot#agent#New(...) abort
   if !empty(node_version)
     let instance.node_version = node_version
   endif
-  let initializationOptions = {'copilotCapabilities': {}}
-  for name in keys(instance.methods)
-    if name =~# '^copilot/'
-      let initializationOptions.copilotCapabilities[matchstr(name, '/\zs.*')] = v:true
-    endif
-  endfor
+  let opts = {'initializationOptions': {}}
   if has('nvim')
     call extend(instance, {
         \ 'Close': function('s:LspClose'),
         \ 'Notify': function('s:LspNotify'),
         \ 'Request': function('s:LspRequest')})
-    let instance.client_id = eval("v:lua.require'_copilot'.lsp_start_client(command, keys(instance.methods), initializationOptions)")
+    let instance.client_id = eval("v:lua.require'_copilot'.lsp_start_client(command, keys(instance.methods), opts)")
     let instance.id = instance.client_id
   else
     let state = {'headers': {}, 'mode': 'headers', 'buffer': ''}
     let instance.open_buffers = {}
-    let instance.methods = extend({'window/showMessageRequest': function('s:ShowMessageRequest')}, instance.methods)
+    let instance.methods = extend(s:vim_handlers, instance.methods)
     let instance.job = job_start(command, {
           \ 'cwd': copilot#job#Cwd(),
           \ 'in_mode': 'lsp',
@@ -548,12 +559,10 @@ function! copilot#agent#New(...) abort
           \ 'exit_cb': { j, d -> timer_start(0, function('s:OnExit', [instance, d])) },
           \ })
     let instance.id = job_info(instance.job).process
-    let opts = {
-          \ 'capabilities': {'workspace': {'workspaceFolders': v:true}},
-          \ 'initializationOptions': initializationOptions,
-          \ 'processId': getpid(),
-          \ }
+    let opts.capabilities = s:vim_capabilities
+    let opts.processId = getpid()
     let request = instance.Request('initialize', opts, function('s:InitializeResult'), function('s:InitializeError'), instance)
+    let instance.initialization_pending = []
   endif
   let s:instances[instance.id] = instance
   return instance

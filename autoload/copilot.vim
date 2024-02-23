@@ -59,7 +59,6 @@ function! s:Start() abort
         \ 'statusNotification': function('s:StatusNotification'),
         \ 'PanelSolution': function('copilot#panel#Solution'),
         \ 'PanelSolutionsDone': function('copilot#panel#SolutionsDone'),
-        \ 'copilot/openURL': function('s:OpenURL'),
         \ },
         \ 'editorConfiguration' : s:EditorConfiguration()})
 endfunction
@@ -518,21 +517,6 @@ function! copilot#Browser() abort
   endif
 endfunction
 
-function! s:OpenURL(params) abort
-  echo a:params.target
-  let browser = copilot#Browser()
-  if empty(browser)
-    return v:false
-  endif
-  let status = {}
-  call copilot#job#Stream(browser + [a:params.target], v:null, v:null, function('s:BrowserCallback', [status]))
-  let time = reltime()
-  while empty(status) && reltimefloat(reltime(time)) < 1
-    sleep 10m
-  endwhile
-  return get(status, 'code') ? v:false : v:true
-endfunction
-
 let s:commands = {}
 
 function! s:EnabledStatusMessage() abort
@@ -705,12 +689,20 @@ function! s:commands.version(opts) abort
   let editorInfo = copilot#agent#EditorInfo()
   echo editorInfo.name . ' ' . editorInfo.version
   if s:Running()
-    let versions = s:agent.Call('getVersion', {})
-    echo 'dist/agent.js ' . versions.version
-    echo 'Node.js ' . get(s:agent, 'node_version', substitute(get(versions, 'runtimeVersion', '?'), '^node/', '', 'g'))
+    let versions = s:agent.Request('getVersion', {})
+    if exists('s:agent.serverInfo.version')
+      echo s:agent.serverInfo.name . ' ' . s:agent.serverInfo.version
+    else
+      echo 'dist/agent.js ' . versions.Await().version
+    endif
+    if exists('s:agent.node_version')
+      echo 'Node.js ' . s:agent.node_version
+    else
+      echo 'Node.js ' . substitute(get(versions.Await(), 'runtimeVersion', '?'), '^node/', '', 'g')
+    endif
     call s:NodeVersionWarning()
   else
-    echo 'dist/agent.js not running'
+    echo 'Not running'
   endif
 endfunction
 
