@@ -8,7 +8,7 @@ local showDocument = function(err, result, ctx, _)
   end
 end
 
-copilot.lsp_start_client = function(cmd, handler_names, opts)
+copilot.lsp_start_client = function(cmd, handler_names, opts, settings)
   local handlers = {['window/showDocument'] = showDocument}
   local id
   for _, name in ipairs(handler_names) do
@@ -26,12 +26,16 @@ copilot.lsp_start_client = function(cmd, handler_names, opts)
     cmd_cwd = vim.call('copilot#job#Cwd'),
     name = 'copilot',
     init_options = opts.initializationOptions,
+    settings = settings,
     handlers = handlers,
     get_language_id = function(bufnr, filetype)
       return vim.call('copilot#doc#LanguageForFileType', filetype)
     end,
     on_init = function(client, initialize_result)
       vim.call('copilot#agent#LspInit', client.id, initialize_result)
+      if vim.fn.has('nvim-0.8') == 0 then
+        client.notify('workspace/didChangeConfiguration', { settings = settings })
+      end
     end,
     on_exit = function(code, signal, client_id)
       vim.schedule(function()

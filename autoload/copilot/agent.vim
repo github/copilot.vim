@@ -310,8 +310,7 @@ function! copilot#agent#LspInit(agent_id, initialize_result) abort
   if !has_key(s:instances, a:agent_id)
     return
   endif
-  let instance = s:instances[a:agent_id]
-  call timer_start(0, { _ -> s:InitializeResult(a:initialize_result, instance)})
+  call s:AfterInitialize(a:initialize_result, s:instances[a:agent_id])
 endfunction
 
 function! copilot#agent#LspExit(agent_id, code, signal) abort
@@ -462,20 +461,21 @@ function! copilot#agent#Settings() abort
   return settings
 endfunction
 
-function! s:InitializeResult(result, agent) abort
+function! s:AfterInitialize(result, agent) abort
   let a:agent.serverInfo = get(a:result, 'serverInfo', {})
   if !has_key(a:agent, 'node_version') && has_key(a:result.serverInfo, 'nodeVersion')
     let a:agent.node_version = a:result.serverInfo.nodeVersion
   endif
-  let info = {
-        \ 'editorInfo': copilot#agent#EditorInfo(),
-        \ 'editorPluginInfo': copilot#agent#EditorPluginInfo(),
-        \ 'editorConfiguration': extend(copilot#agent#Settings(), a:agent.editorConfiguration)}
+endfunction
+
+function! s:InitializeResult(result, agent) abort
   let pending = get(a:agent, 'initialization_pending', [])
   if has_key(a:agent, 'initialization_pending')
     call remove(a:agent, 'initialization_pending')
   endif
-  call a:agent.Request('setEditorInfo', info)
+  call a:agent.Notify('initialized', {})
+  call s:AfterInitialize(a:result, a:agent)
+  call a:agent.Notify('workspace/didChangeConfiguration', {'settings': a:agent.settings})
   for request in pending
     call timer_start(0, { _ -> s:SendRequest(a:agent, request) })
   endfor
@@ -514,7 +514,7 @@ let s:vim_capabilities = {
 function! copilot#agent#New(...) abort
   let opts = a:0 ? a:1 : {}
   let instance = {'requests': {},
-        \ 'editorConfiguration': get(opts, 'editorConfiguration', {}),
+        \ 'settings': extend(copilot#agent#Settings(), get(opts, 'editorConfiguration', {})),
         \ 'Close': function('s:AgentClose'),
         \ 'Notify': function('s:AgentNotify'),
         \ 'Request': function('s:AgentRequest'),
@@ -538,13 +538,17 @@ function! copilot#agent#New(...) abort
   if !empty(node_version)
     let instance.node_version = node_version
   endif
-  let opts = {'initializationOptions': {}}
+  let opts = {}
+  let opts.initializationOptions = {
+        \ 'editorInfo': copilot#agent#EditorInfo(),
+        \ 'editorPluginInfo': copilot#agent#EditorPluginInfo(),
+        \ }
   if has('nvim')
     call extend(instance, {
         \ 'Close': function('s:LspClose'),
         \ 'Notify': function('s:LspNotify'),
         \ 'Request': function('s:LspRequest')})
-    let instance.client_id = eval("v:lua.require'_copilot'.lsp_start_client(command, keys(instance.methods), opts)")
+    let instance.client_id = eval("v:lua.require'_copilot'.lsp_start_client(command, keys(instance.methods), opts, instance.settings)")
     let instance.id = instance.client_id
   else
     let state = {'headers': {}, 'mode': 'headers', 'buffer': ''}
