@@ -95,6 +95,19 @@ g:copilot_proxy_strict_ssl
                         by setting the $NODE_TLS_REJECT_UNAUTHORIZED
                         environment variable to "0".
 
+                                                *g:copilot_workspace_folders*
+g:copilot_workspace_folders
+                        A list of "workspace folders" or project roots that
+                        Copilot may use to improve to improve the quality of
+                        suggestions.
+>
+                        let g:copilot_workspace_folders =
+                               \ ["~/Projects/myproject"]
+<
+                        You can also set b:workspace_folder for an individual
+                        buffer and newly seen values will be added
+                        automatically.
+
 MAPS                                            *copilot-maps*
 
                                                 *copilot-i_<Tab>*

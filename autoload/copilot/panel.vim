@@ -36,7 +36,6 @@ function! s:Render(panel_id) abort
     call setbufline(bufnr, 1, lines)
   finally
     call setbufvar(bufnr, '&modifiable', 0)
-    call setbufvar(bufnr, '&readonly', 1)
   endtry
 endfunction
 
@@ -81,7 +80,7 @@ function! copilot#panel#Accept(...) abort
     if getbufline(state.bufnr, lnum) !=# [state.line]
       return 'echoerr "Buffer has changed since synthesizing solution"'
     endif
-    let lines = split(solution.displayText, "\n", 1)
+    let lines = split(solution.completionText, "\n", 1)
     let old_first = getline(solution.range.start.line + 1)
     let lines[0] = strpart(old_first, 0, copilot#doc#UTF16ToByteIdx(old_first, solution.range.start.character)) . lines[0]
     let old_last = getline(solution.range.end.line + 1)
@@ -115,7 +114,7 @@ function! s:Initialize(state) abort
 endfunction
 
 function! s:BufReadCmd() abort
-  setlocal bufhidden=wipe buftype=nofile nobuflisted readonly nomodifiable
+  setlocal bufhidden=wipe buftype=nofile nobuflisted nomodifiable
   let state = get(b:, 'copilot_panel')
   if type(state) != v:t_dict
     return
@@ -128,7 +127,7 @@ endfunction
 function! copilot#panel#Open(opts) abort
   let s:panel_id += 1
   let state = {'solutions': {}, 'filetype': &filetype, 'line': getline('.'), 'bufnr': bufnr(''), 'tabstop': &tabstop}
-  let bufname = 'copilot:///' . s:panel_id
+  let bufname = 'copilot:///panel/' . s:panel_id
   let params = copilot#doc#Params({'panelId': bufname})
   let state.was_insert = mode() =~# '^[iR]'
   if state.was_insert
@@ -151,5 +150,5 @@ endfunction
 
 augroup github_copilot_panel
   autocmd!
-  autocmd BufReadCmd copilot:///* exe s:BufReadCmd()
+  autocmd BufReadCmd copilot:///panel/* exe s:BufReadCmd()
 augroup END

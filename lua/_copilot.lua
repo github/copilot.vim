@@ -1,10 +1,11 @@
 local copilot = {}
 
 local showDocument = function(err, result, ctx, _)
-  if result.external and vim.g.copilot_browser then
-    return vim.fn['copilot#handlers#window_showDocument'](result.uri)
+  local fallback = vim.lsp.handlers['window/showDocument']
+  if not fallback or (result.external and vim.g.copilot_browser) then
+    return vim.fn['copilot#handlers#window_showDocument'](result)
   else
-    return vim.lsp.handlers['window/showDocument'](err, result, ctx, _)
+    return fallback(err, result, ctx, _)
   end
 end
 
@@ -26,6 +27,7 @@ copilot.lsp_start_client = function(cmd, handler_names, opts, settings)
     cmd_cwd = vim.call('copilot#job#Cwd'),
     name = 'copilot',
     init_options = opts.initializationOptions,
+    workspace_folders = opts.workspace_folders,
     settings = settings,
     handlers = handlers,
     get_language_id = function(bufnr, filetype)
@@ -46,24 +48,18 @@ copilot.lsp_start_client = function(cmd, handler_names, opts, settings)
   return id
 end
 
-copilot.lsp_request = function(client_id, method, params)
+copilot.lsp_request = function(client_id, method, params, bufnr)
   local client = vim.lsp.get_client_by_id(client_id)
   if not client then
     return
   end
-  pcall(vim.lsp.buf_attach_client, 0, client_id)
-  for _, doc in ipairs({ params.doc, params.textDocument }) do
-    if doc and type(doc.uri) == 'number' then
-      local bufnr = doc.uri
-      pcall(vim.lsp.buf_attach_client, bufnr, client_id)
-      doc.uri = vim.uri_from_bufnr(bufnr)
-      doc.version = vim.lsp.util.buf_versions[bufnr]
-    end
+  if bufnr == vim.NIL then
+    bufnr = nil
   end
   local _, id
   _, id = client.request(method, params, function(err, result)
     vim.call('copilot#agent#LspResponse', client_id, { id = id, error = err, result = result })
-  end)
+  end, bufnr)
   return id
 end
 

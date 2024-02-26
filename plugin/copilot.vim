@@ -62,7 +62,8 @@ augroup github_copilot
   autocmd VimEnter             * call s:MapTab()
   autocmd BufUnload            * call s:Event('BufUnload')
   autocmd VimLeavePre          * call s:Event('VimLeavePre')
-  autocmd BufReadCmd copilot://* setlocal buftype=nofile bufhidden=wipe nobuflisted readonly nomodifiable
+  autocmd BufReadCmd copilot://* setlocal buftype=nofile bufhidden=wipe nobuflisted nomodifiable
+  autocmd BufReadCmd copilot:///log call copilot#logger#BufReadCmd() | setfiletype copilotlog
 augroup END
 
 call s:ColorScheme()
