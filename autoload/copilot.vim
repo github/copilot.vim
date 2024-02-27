@@ -44,7 +44,7 @@ function! s:StatusNotification(params, ...) abort
 endfunction
 
 function! copilot#Init(...) abort
-  call timer_start(0, { _ -> s:Start() })
+  call timer_start(0, { _ -> exists('s:agent') || s:Start() })
 endfunction
 
 function! s:Running() abort
@@ -401,6 +401,9 @@ function! s:HandleTriggerResult(result) abort
 endfunction
 
 function! copilot#Suggest() abort
+  if !s:Running()
+    return ''
+  endif
   try
     call copilot#Complete(function('s:HandleTriggerResult'), function('s:HandleTriggerResult'))
   catch
@@ -418,13 +421,8 @@ function! s:Trigger(bufnr, timer) abort
   return copilot#Suggest()
 endfunction
 
-function! copilot#IsMapped() abort
-  return get(g:, 'copilot_assume_mapped') ||
-        \ hasmapto('copilot#Accept(', 'i')
-endfunction
-
 function! copilot#Schedule(...) abort
-  if !s:has_ghost_text || !copilot#Enabled() || !copilot#IsMapped()
+  if !s:has_ghost_text || !copilot#Enabled()
     call copilot#Clear()
     return
   endif
@@ -432,6 +430,20 @@ function! copilot#Schedule(...) abort
   let delay = a:0 ? a:1 : get(g:, 'copilot_idle_delay', 15)
   call timer_stop(get(g:, '_copilot_timer', -1))
   let g:_copilot_timer = timer_start(delay, function('s:Trigger', [bufnr('')]))
+endfunction
+
+function! s:SyncTextDocument(bufnr, ...) abort
+  try
+    return copilot#Agent().SyncTextDocument(a:bufnr)
+  catch
+    call copilot#logger#Exception()
+  endtry
+endfunction
+
+function! copilot#OnFileType() abort
+  if empty(s:BufferDisabled())
+    call timer_start(0, function('s:SyncTextDocument', [bufnr('')]))
+  endif
 endfunction
 
 function! copilot#OnInsertLeave() abort
@@ -547,8 +559,6 @@ function! s:EnabledStatusMessage() abort
     else
       return "Vim " . s:vim_minimum_version . " required to support ghost text"
     endif
-  elseif !copilot#IsMapped()
-    return '<Tab> map has been disabled or is claimed by another plugin'
   elseif !get(g:, 'copilot_enabled', 1)
     return 'Disabled globally by :Copilot disable'
   elseif buf_disabled is# 5

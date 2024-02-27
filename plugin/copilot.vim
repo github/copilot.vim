@@ -52,6 +52,7 @@ endfunction
 
 augroup github_copilot
   autocmd!
+  autocmd FileType             * call s:Event('FileType')
   autocmd InsertLeave          * call s:Event('InsertLeave')
   autocmd BufLeave             * if mode() =~# '^[iR]'|call s:Event('InsertLeave')|endif
   autocmd InsertEnter          * call s:Event('InsertEnter')
@@ -59,7 +60,7 @@ augroup github_copilot
   autocmd CursorMovedI         * call s:Event('CursorMovedI')
   autocmd CompleteChanged      * call s:Event('CompleteChanged')
   autocmd ColorScheme,VimEnter * call s:ColorScheme()
-  autocmd VimEnter             * call s:MapTab()
+  autocmd VimEnter             * call s:MapTab() | call copilot#Init()
   autocmd BufUnload            * call s:Event('BufUnload')
   autocmd VimLeavePre          * call s:Event('VimLeavePre')
   autocmd BufReadCmd copilot://* setlocal buftype=nofile bufhidden=wipe nobuflisted nomodifiable
@@ -105,8 +106,6 @@ if !get(g:, 'copilot_no_maps')
     endif
   endtry
 endif
-
-call copilot#Init()
 
 let s:dir = expand('<sfile>:h:h')
 if getftime(s:dir . '/doc/copilot.txt') > getftime(s:dir . '/doc/tags')
