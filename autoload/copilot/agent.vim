@@ -196,6 +196,9 @@ function! s:PreprocessParams(agent, params) abort
 endfunction
 
 function! s:VimSyncTextDocument(bufnr) dict abort
+  if !bufloaded(a:bufnr)
+    return {'uri': '', 'version': 0}
+  endif
   let bufnr = a:bufnr
   let doc = {
         \ 'uri': s:UriFromBufnr(bufnr),
@@ -363,6 +366,9 @@ function! copilot#agent#LspResponse(agent_id, opts, ...) abort
 endfunction
 
 function! s:NvimSyncTextDocument(bufnr) dict abort
+  if !bufloaded(a:bufnr)
+    return {'uri': '', 'version': 0}
+  endif
   call luaeval('pcall(vim.lsp.buf_attach_client, _A[1], _A[2])', [a:bufnr, self.id])
   return luaeval('{uri = vim.uri_from_bufnr(_A), version = vim.lsp.util.buf_versions[_A]}', a:bufnr)
 endfunction
@@ -627,6 +633,7 @@ function! copilot#agent#New(...) abort
     let instance.job = job_start(command, {
           \ 'cwd': copilot#job#Cwd(),
           \ 'noblock': 1,
+          \ 'stoponexit': '',
           \ 'in_mode': 'lsp',
           \ 'out_mode': 'lsp',
           \ 'out_cb': { j, d -> timer_start(0, function('s:OnMessage', [instance, d])) },
