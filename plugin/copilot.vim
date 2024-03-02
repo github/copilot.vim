@@ -57,6 +57,7 @@ augroup github_copilot
   autocmd BufLeave             * if mode() =~# '^[iR]'|call s:Event('InsertLeave')|endif
   autocmd InsertEnter          * call s:Event('InsertEnter')
   autocmd BufEnter             * if mode() =~# '^[iR]'|call s:Event('InsertEnter')|endif
+  autocmd BufEnter             * call s:Event('BufEnter')
   autocmd CursorMovedI         * call s:Event('CursorMovedI')
   autocmd CompleteChanged      * call s:Event('CompleteChanged')
   autocmd ColorScheme,VimEnter * call s:ColorScheme()

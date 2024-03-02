@@ -432,18 +432,29 @@ function! copilot#Schedule(...) abort
   let g:_copilot_timer = timer_start(delay, function('s:Trigger', [bufnr('')]))
 endfunction
 
-function! s:SyncTextDocument(bufnr, ...) abort
+function! s:Attach(bufnr, ...) abort
   try
-    return copilot#Agent().SyncTextDocument(a:bufnr)
+    return copilot#Agent().Attach(a:bufnr)
   catch
     call copilot#logger#Exception()
   endtry
 endfunction
 
 function! copilot#OnFileType() abort
-  if empty(s:BufferDisabled())
-    call timer_start(0, function('s:SyncTextDocument', [bufnr('')]))
+  if empty(s:BufferDisabled()) && &l:modifiable && &l:buflisted
+    call timer_start(0, function('s:Attach', [bufnr('')]))
   endif
+endfunction
+
+function! s:Focus(bufnr, ...) abort
+  if s:Running() && copilot#Agent().IsAttached(a:bufnr)
+    call copilot#Agent().Notify('textDocument/didFocus', {'textDocument': {'uri': copilot#Agent().Attach(a:bufnr).uri}})
+  endif
+endfunction
+
+function! copilot#OnBufEnter() abort
+  let bufnr = bufnr('')
+  call timer_start(0, { _ -> timer_start(0, function('s:Focus', [bufnr]))})
 endfunction
 
 function! copilot#OnInsertLeave() abort

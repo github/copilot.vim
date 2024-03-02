@@ -1,3 +1,3 @@
 function! copilot#version#String() abort
-  return '1.23.0'
+  return '1.24.0'
 endfunction

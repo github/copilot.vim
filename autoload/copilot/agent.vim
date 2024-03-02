@@ -188,14 +188,14 @@ function! s:PreprocessParams(agent, params) abort
   for doc in filter([get(a:params, 'doc', {}), get(a:params, 'textDocument', {})], 'type(get(v:val, "uri", "")) == v:t_number')
     let bufnr = doc.uri
     call s:RegisterWorkspaceFolderForBuffer(a:agent, bufnr)
-    let synced = a:agent.SyncTextDocument(bufnr)
+    let synced = a:agent.Attach(bufnr)
     let doc.uri = synced.uri
-    let doc.version = synced.version
+    let doc.version = get(synced, 'version', 0)
   endfor
   return bufnr
 endfunction
 
-function! s:VimSyncTextDocument(bufnr) dict abort
+function! s:VimAttach(bufnr) dict abort
   if !bufloaded(a:bufnr)
     return {'uri': '', 'version': 0}
   endif
@@ -221,6 +221,10 @@ function! s:VimSyncTextDocument(bufnr) dict abort
     let self.open_buffers[bufnr].version = doc.version
   endif
   return doc
+endfunction
+
+function! s:VimIsAttached(bufnr) dict abort
+  return bufloaded(a:bufnr) && has_key(self.open_buffers, a:bufnr) ? v:true : v:false
 endfunction
 
 function! s:AgentRequest(method, params, ...) dict abort
@@ -365,12 +369,16 @@ function! copilot#agent#LspResponse(agent_id, opts, ...) abort
   call s:OnResponse(s:instances[a:agent_id], a:opts)
 endfunction
 
-function! s:NvimSyncTextDocument(bufnr) dict abort
+function! s:NvimAttach(bufnr) dict abort
   if !bufloaded(a:bufnr)
     return {'uri': '', 'version': 0}
   endif
   call luaeval('pcall(vim.lsp.buf_attach_client, _A[1], _A[2])', [a:bufnr, self.id])
   return luaeval('{uri = vim.uri_from_bufnr(_A), version = vim.lsp.util.buf_versions[_A]}', a:bufnr)
+endfunction
+
+function! s:NvimIsAttached(bufnr) dict abort
+  return bufloaded(a:bufnr) ? luaeval('vim.lsp.buf_is_attached(_A[1], _A[2])', [a:bufnr, self.id]) : v:false
 endfunction
 
 function! s:LspRequest(method, params, ...) dict abort
@@ -575,7 +583,8 @@ function! copilot#agent#New(...) abort
         \ 'Close': function('s:AgentClose'),
         \ 'Notify': function('s:AgentNotify'),
         \ 'Request': function('s:AgentRequest'),
-        \ 'SyncTextDocument': function('s:VimSyncTextDocument'),
+        \ 'Attach': function('s:VimAttach'),
+        \ 'IsAttached': function('s:VimIsAttached'),
         \ 'Call': function('s:AgentCall'),
         \ 'Cancel': function('s:AgentCancel'),
         \ 'StartupError': function('s:AgentStartupError'),
@@ -622,7 +631,8 @@ function! copilot#agent#New(...) abort
         \ 'Close': function('s:LspClose'),
         \ 'Notify': function('s:LspNotify'),
         \ 'Request': function('s:LspRequest'),
-        \ 'SyncTextDocument': function('s:NvimSyncTextDocument'),
+        \ 'Attach': function('s:NvimAttach'),
+        \ 'IsAttached': function('s:NvimIsAttached'),
         \ })
     let instance.client_id = eval("v:lua.require'_copilot'.lsp_start_client(command, keys(instance.methods), opts, instance.settings)")
     let instance.id = instance.client_id
