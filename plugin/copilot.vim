@@ -81,11 +81,6 @@ if !get(g:, 'copilot_no_maps')
   imap <script><silent><nowait><expr> <Plug>(copilot-accept-word) copilot#AcceptWord()
   imap <script><silent><nowait><expr> <Plug>(copilot-accept-line) copilot#AcceptLine()
   try
-    if !has('nvim') && &encoding ==# 'utf-8'
-      " avoid 8-bit meta collision with UTF-8 characters
-      let s:restore_encoding = 1
-      silent noautocmd set encoding=cp949
-    endif
     if empty(mapcheck('<M-]>', 'i'))
       imap <M-]> <Plug>(copilot-next)
     endif
@@ -102,9 +97,6 @@ if !get(g:, 'copilot_no_maps')
       imap <M-C-Right> <Plug>(copilot-accept-line)
     endif
   finally
-    if exists('s:restore_encoding')
-      silent noautocmd set encoding=utf-8
-    endif
   endtry
 endif
 
