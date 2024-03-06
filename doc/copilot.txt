@@ -176,10 +176,24 @@ Lua version:
 SYNTAX HIGHLIGHTING                             *copilot-highlighting*
 
 Inline suggestions are highlighted using the CopilotSuggestion group,
-defaulting to a medium gray.  The best place to override this is a file named
-after/colors/<colorschemename>.vim in your 'runtimepath' (e.g.,
-~/.config/nvim/after/colors/solarized.vim).  Example declaration:
+defaulting to a medium gray.  The best place to override this is with
+a |ColorScheme| autocommand:
 >
-        highlight CopilotSuggestion guifg=#555555 ctermfg=8
+        autocmd ColorScheme solarized
+              \ highlight CopilotSuggestion guifg=#555555 ctermfg=8
+<
+Lua version:
+>
+        vim.api.nvim_create_autocmd('ColorScheme', {
+          pattern = 'solarized',
+          -- group = ...,
+          callback = function()
+            vim.api.nvim_set_hl(0, 'CopilotSuggestion', {
+              fg = '#555555',
+              ctermfg = 8,
+              force = true
+            })
+          end
+        })
 <
  vim:tw=78:et:ft=help:norl:

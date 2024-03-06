@@ -72,7 +72,12 @@ function! s:Send(agent, request) abort
 endfunction
 
 function! s:AgentNotify(method, params) dict abort
-  return s:Send(self, {'method': a:method, 'params': a:params})
+  let request = {'method': a:method, 'params': a:params}
+  if has_key(self, 'initialization_pending')
+    call add(self.initialization_pending, request)
+  else
+    return s:Send(self, request)
+  endif
 endfunction
 
 function! s:RequestWait() dict abort
@@ -164,8 +169,8 @@ function! s:BufferText(bufnr) abort
   return join(getbufline(a:bufnr, 1, '$'), "\n") . "\n"
 endfunction
 
-function! s:SendRequest(agent, request) abort
-  if empty(s:Send(a:agent, a:request)) && has_key(a:agent.requests, a:request.id)
+function! s:SendRequest(agent, request, ...) abort
+  if empty(s:Send(a:agent, a:request)) && has_key(a:request, 'id') && has_key(a:agent.requests, a:request.id)
     call s:RejectRequest(remove(a:agent.requests, a:request.id), {'code': 257, 'message': 'Write failed'})
   endif
 endfunction
@@ -524,15 +529,10 @@ function! s:AfterInitialize(result, agent) abort
 endfunction
 
 function! s:InitializeResult(result, agent) abort
-  let pending = get(a:agent, 'initialization_pending', [])
-  if has_key(a:agent, 'initialization_pending')
-    call remove(a:agent, 'initialization_pending')
-  endif
-  call a:agent.Notify('initialized', {})
   call s:AfterInitialize(a:result, a:agent)
-  call a:agent.Notify('workspace/didChangeConfiguration', {'settings': a:agent.settings})
-  for request in pending
-    call timer_start(0, { _ -> s:SendRequest(a:agent, request) })
+  call s:Send(a:agent, {'method': 'initialized', 'params': {}})
+  for request in remove(a:agent, 'initialization_pending')
+    call timer_start(0, function('s:SendRequest', [a:agent, request]))
   endfor
 endfunction
 
@@ -578,7 +578,6 @@ let s:vim_capabilities = {
 function! copilot#agent#New(...) abort
   let opts = a:0 ? a:1 : {}
   let instance = {'requests': {},
-        \ 'settings': extend(copilot#agent#Settings(), get(opts, 'editorConfiguration', {})),
         \ 'workspaceFolders': {},
         \ 'Close': function('s:AgentClose'),
         \ 'Notify': function('s:AgentNotify'),
@@ -611,6 +610,7 @@ function! copilot#agent#New(...) abort
         \ 'editorPluginInfo': copilot#agent#EditorPluginInfo(),
         \ }
   let opts.workspaceFolders = []
+  let settings = extend(copilot#agent#Settings(), get(opts, 'editorConfiguration', {}))
   if type(get(g:, 'copilot_workspace_folders')) == v:t_list
     for folder in g:copilot_workspace_folders
       if type(folder) == v:t_string && !empty(folder) && folder !~# '\*\*\|^/$'
@@ -634,7 +634,7 @@ function! copilot#agent#New(...) abort
         \ 'Attach': function('s:NvimAttach'),
         \ 'IsAttached': function('s:NvimIsAttached'),
         \ })
-    let instance.client_id = eval("v:lua.require'_copilot'.lsp_start_client(command, keys(instance.methods), opts, instance.settings)")
+    let instance.client_id = eval("v:lua.require'_copilot'.lsp_start_client(command, keys(instance.methods), opts, settings)")
     let instance.id = instance.client_id
   else
     let state = {'headers': {}, 'mode': 'headers', 'buffer': ''}
@@ -655,6 +655,7 @@ function! copilot#agent#New(...) abort
     let opts.processId = getpid()
     let request = instance.Request('initialize', opts, function('s:InitializeResult'), function('s:InitializeError'), instance)
     let instance.initialization_pending = []
+    call instance.Notify('workspace/didChangeConfiguration', {'settings': settings})
   endif
   let s:instances[instance.id] = instance
   return instance

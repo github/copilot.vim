@@ -503,7 +503,11 @@ function! copilot#Accept(...) abort
     if empty(text)
       let text = s.text
     endif
-    call copilot#Request('notifyAccepted', {'uuid': s.uuid, 'acceptedLength': copilot#doc#UTF16Width(text)})
+    let acceptance = {'uuid': s.uuid}
+    if text !=# s.text
+      let acceptance.acceptedLength = copilot#doc#UTF16Width(text)
+    endif
+    call copilot#Request('notifyAccepted', acceptance)
     call s:ClearPreview()
     let s:suggestion_text = text
     return repeat("\<Left>\<Del>", s.outdentSize) . repeat("\<Del>", s.deleteSize) .
