@@ -181,5 +181,14 @@ after/colors/<colorschemename>.vim in your 'runtimepath' (e.g.,
 ~/.config/nvim/after/colors/solarized.vim).  Example declaration:
 >
         highlight CopilotSuggestion guifg=#555555 ctermfg=8
+
+If this fails, then add to your vimrc a corresponding autocommand for your
+color scheme (or all color schemes, as below): >
+>
+        augroup CopilotColorScheme
+        autocmd!
+        autocmd ColorScheme * highlight CopilotSuggestion guifg=#555555 ctermfg=8
+        autocmd VimEnter * silent doautocmd CopilotColorScheme ColorScheme *
+        augroup END
 <
  vim:tw=78:et:ft=help:norl:

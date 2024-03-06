@@ -12,7 +12,7 @@ if v:version < 800 || !exists('##CompleteChanged')
 endif
 
 function! s:ColorScheme() abort
-  if &t_Co == 256
+  if &t_Co > 16
     hi def CopilotSuggestion guifg=#808080 ctermfg=244
   else
     hi def CopilotSuggestion guifg=#808080 ctermfg=8
