@@ -492,6 +492,12 @@ function! copilot#TextQueuedForInsertion() abort
   endtry
 endfunction
 
+inoremap <Plug>(GithubCopilotLeft) <Left>
+inoremap <Plug>(GithubCopilotDel)  <Del>
+inoremap <Plug>(GithubCopilotC-R)  <C-R>
+inoremap <Plug>(GithubCopilotEnd)  <End>
+inoremap <Plug>(GithubCopilotC-N)  <C-N>
+
 function! copilot#Accept(...) abort
   let s = copilot#GetDisplayedSuggestion()
   if !empty(s.text)
@@ -506,10 +512,10 @@ function! copilot#Accept(...) abort
     call copilot#Request('notifyAccepted', {'uuid': s.uuid, 'acceptedLength': copilot#doc#UTF16Width(text)})
     call s:ClearPreview()
     let s:suggestion_text = text
-    return repeat("\<Left>\<Del>", s.outdentSize) . repeat("\<Del>", s.deleteSize) .
-            \ "\<C-R>\<C-O>=copilot#TextQueuedForInsertion()\<CR>" . (a:0 > 1 ? '' : "\<End>")
+    return repeat("\<Plug>(GithubCopilotLeft)\<Plug>(GithubCopilotDel)", s.outdentSize) . repeat("\<Plug>(GithubCopilotDel)", s.deleteSize) .
+          \ "\<Plug>(GithubCopilotC-R)\<C-O>=copilot#TextQueuedForInsertion()\<CR>" . (a:0 > 1 ? '' : "\<Plug>(GithubCopilotEnd)")
   endif
-  let default = get(g:, 'copilot_tab_fallback', pumvisible() ? "\<C-N>" : "\t")
+  let default = get(g:, 'copilot_tab_fallback', pumvisible() ? "\<Plug>(GithubCopilotC-N)" : "\t")
   if !a:0
     return default
   elseif type(a:1) == v:t_string
@@ -623,8 +629,8 @@ function! s:commands.status(opts) abort
 
   let startup_error = copilot#Agent().StartupError()
   if !empty(startup_error)
-      echo 'Copilot: ' . startup_error
-      return
+    echo 'Copilot: ' . startup_error
+    return
   endif
 
   if exists('s:agent_error')
@@ -656,8 +662,8 @@ endfunction
 function! s:commands.setup(opts) abort
   let startup_error = copilot#Agent().StartupError()
   if !empty(startup_error)
-      echo 'Copilot: ' . startup_error
-      return
+    echo 'Copilot: ' . startup_error
+    return
   endif
 
   let browser = copilot#Browser()
@@ -805,6 +811,25 @@ endfunction
 function! s:commands.panel(opts) abort
   if s:VerifySetup()
     return copilot#panel#Open(a:opts)
+  endif
+endfunction
+
+function! copilot#MapAccept(key) abort
+  let key_map = maparg(a:key, 'i', 0, 1)
+  if !has_key(key_map, 'rhs')
+    exe 'imap <script><silent><nowait><expr>' . a:key . ' copilot#Accept()'
+  elseif key_map.rhs !~# 'copilot'
+    if key_map.expr
+      let key_fallback = '{ -> ' . key_map.rhs . ' }'
+    else
+      let key_fallback = substitute(json_encode(key_map.rhs), '<', '\\<', 'g')
+    endif
+    let key_fallback = substitute(key_fallback, '<SID>', '<SNR>' . get(key_map, 'sid') . '_', 'g')
+    if get(key_map, 'noremap') || get(key_map, 'script') || mapcheck('<Left>', 'i') || mapcheck('<Del>', 'i')
+      exe 'imap <script><silent><nowait><expr>' . a:key . ' copilot#Accept(' . key_fallback . ')'
+    else
+      exe 'imap <silent><nowait><expr>        ' . a:key . ' copilot#Accept(' . key_fallback . ')'
+    endif
   endif
 endfunction
 

@@ -116,30 +116,45 @@ existing <Tab> map, that will be used as the fallback when no suggestion is
 displayed.
 
                                                 *copilot#Accept()*
-If you'd rather use a key that isn't <Tab>, define an <expr> map that calls
-copilot#Accept().  Here's an example with CTRL-J:
+If you'd rather use a key that isn't <Tab>, say CTRL-J, either
 >
-        imap <silent><script><expr> <C-J> copilot#Accept("\<CR>")
+        call copilot#MapAccept("<C-J>")
+<
+to fall back to an existing mapping when no suggestion is displayed,
+or define an <expr> map that calls copilot#Accept():
+>
+        inoremap <SID>(Enter) <Enter>
+        imap <silent><expr> <C-J> copilot#Accept("<SID>(Enter)")
         let g:copilot_no_tab_map = v:true
 <
 Lua version:
 >
-        vim.keymap.set('i', '<C-J>', 'copilot#Accept("\\<CR>")', {
-          expr = true,
+        vim.keymap.set('i', '<SID>(Enter)', '<Enter>', {
+          expr = false,
           replace_keycodes = false
+        })
+        vim.keymap.set('i', '<C-J>', 'copilot#Accept("\\<Enter>")', {
+          expr = true,
+          replace_keycodes = true
         })
         vim.g.copilot_no_tab_map = true
 <
 The argument to copilot#Accept() is the fallback for when no suggestion is
-displayed.  In this example, a regular carriage return is used.  If no
-fallback is desired, use an argument of "" (an empty string).
+displayed. (In the first option, the fallback can be any recursive mapping, in
+this second option only script-local.) In this example, a regular carriage
+return is used.  If no fallback is desired, use an argument of "" (an empty
+string).
 
 Other Maps ~
 
 Note that M- (a.k.a. meta or alt) maps are highly dependent on your terminal
 to function correctly and may be unsupported with your setup.  As an
-alternative, you can create your own versions that invoke the <Plug> maps
-instead.  Here's an example that maps CTRL-L to accept one word of the
+alternative, you can define
+>
+        let g:copilot_no_maps = v:true
+<
+and create your own versions that invoke the <Plug> maps instead.  Here's an
+example that maps CTRL-L to accept one word of the
 current suggestion:
 >
         imap <C-L> <Plug>(copilot-accept-word)
