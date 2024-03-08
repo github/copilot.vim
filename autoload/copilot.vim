@@ -44,7 +44,7 @@ function! s:StatusNotification(params, ...) abort
 endfunction
 
 function! copilot#Init(...) abort
-  call timer_start(0, { _ -> exists('s:agent') || s:Start() })
+  call copilot#util#Defer({ -> exists('s:agent') || s:Start() })
 endfunction
 
 function! s:Running() abort
@@ -442,7 +442,7 @@ endfunction
 
 function! copilot#OnFileType() abort
   if empty(s:BufferDisabled()) && &l:modifiable && &l:buflisted
-    call timer_start(0, function('s:Attach', [bufnr('')]))
+    call copilot#util#Defer(function('s:Attach'), bufnr(''))
   endif
 endfunction
 
@@ -454,7 +454,7 @@ endfunction
 
 function! copilot#OnBufEnter() abort
   let bufnr = bufnr('')
-  call timer_start(0, { _ -> timer_start(0, function('s:Focus', [bufnr]))})
+  call copilot#util#Defer(function('s:Focus'), bufnr)
 endfunction
 
 function! copilot#OnInsertLeave() abort
@@ -676,8 +676,14 @@ function! s:commands.setup(opts) abort
   if has_key(data, 'verificationUri')
     let uri = data.verificationUri
     if has('clipboard')
-      let @+ = data.userCode
-      let @* = data.userCode
+      try
+        let @+ = data.userCode
+      catch
+      endtry
+      try
+        let @* = data.userCode
+      catch
+      endtry
     endif
     let codemsg = "First copy your one-time code: " . data.userCode . "\n"
     try

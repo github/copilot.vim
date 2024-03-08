@@ -22,12 +22,16 @@ copilot.lsp_start_client = function(cmd, handler_names, opts, settings)
       end
     end
   end
+  local workspace_folders = opts.workspaceFolders
+  if #workspace_folders == 0 then
+    workspace_folders = nil
+  end
   id = vim.lsp.start_client({
     cmd = cmd,
     cmd_cwd = vim.call('copilot#job#Cwd'),
     name = 'copilot',
     init_options = opts.initializationOptions,
-    workspace_folders = opts.workspace_folders,
+    workspace_folders = workspace_folders,
     settings = settings,
     handlers = handlers,
     get_language_id = function(bufnr, filetype)

@@ -240,7 +240,7 @@ function! s:AgentRequest(method, params, ...) dict abort
   if has_key(self, 'initialization_pending')
     call add(self.initialization_pending, request)
   else
-    call timer_start(0, { _ -> s:SendRequest(self, request) })
+    call copilot#util#Defer(function('s:SendRequest'), self, request)
   endif
   return call('s:SetUpRequest', [self, s:id, a:method, params] + a:000)
 endfunction
@@ -330,7 +330,7 @@ function! s:OnResponse(agent, response, ...) abort
   endif
 endfunction
 
-function! s:OnErr(agent, line, ...) abort
+function! s:OnErr(agent, ch, line, ...) abort
   if !has_key(a:agent, 'serverInfo')
     call copilot#logger#Bare('<-! ' . a:line)
   endif
@@ -348,7 +348,7 @@ function! s:OnExit(agent, code, ...) abort
   for id in sort(keys(a:agent.requests), { a, b -> +a > +b })
     call s:RejectRequest(remove(a:agent.requests, id), {'code': code, 'message': 'Agent exited', 'data': {'status': a:code}})
   endfor
-  call timer_start(0, { _ -> get(s:instances, a:agent.id) is# a:agent ? remove(s:instances, a:agent.id) : {} })
+  call copilot#util#Defer({ -> get(s:instances, a:agent.id) is# a:agent ? remove(s:instances, a:agent.id) : {} })
   call copilot#logger#Info('Agent exited with status ' . a:code)
 endfunction
 
@@ -532,7 +532,7 @@ function! s:InitializeResult(result, agent) abort
   call s:AfterInitialize(a:result, a:agent)
   call s:Send(a:agent, {'method': 'initialized', 'params': {}})
   for request in remove(a:agent, 'initialization_pending')
-    call timer_start(0, function('s:SendRequest', [a:agent, request]))
+    call copilot#util#Defer(function('s:SendRequest'), a:agent, request)
   endfor
 endfunction
 
@@ -646,9 +646,9 @@ function! copilot#agent#New(...) abort
           \ 'stoponexit': '',
           \ 'in_mode': 'lsp',
           \ 'out_mode': 'lsp',
-          \ 'out_cb': { j, d -> timer_start(0, function('s:OnMessage', [instance, d])) },
-          \ 'err_cb': { j, d -> timer_start(0, function('s:OnErr', [instance, d])) },
-          \ 'exit_cb': { j, d -> timer_start(0, function('s:OnExit', [instance, d])) },
+          \ 'out_cb': { j, d -> copilot#util#Defer(function('s:OnMessage'), instance, d) },
+          \ 'err_cb': function('s:OnErr', [instance]),
+          \ 'exit_cb': { j, d -> copilot#util#Defer(function('s:OnExit'), instance, d) },
           \ })
     let instance.id = job_info(instance.job).process
     let opts.capabilities = s:vim_capabilities
