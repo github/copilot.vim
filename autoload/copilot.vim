@@ -34,15 +34,6 @@ function! s:EditorConfiguration() abort
         \ }
 endfunction
 
-function! s:StatusNotification(params, ...) abort
-  let status = get(a:params, 'status', '')
-  if status ==? 'error'
-    let s:agent_error = a:params.message
-  else
-    unlet! s:agent_error
-  endif
-endfunction
-
 function! copilot#Init(...) abort
   call copilot#util#Defer({ -> exists('s:agent') || s:Start() })
 endfunction
@@ -56,7 +47,6 @@ function! s:Start() abort
     return
   endif
   let s:agent = copilot#agent#New({'methods': {
-        \ 'statusNotification': function('s:StatusNotification'),
         \ 'PanelSolution': function('copilot#panel#Solution'),
         \ 'PanelSolutionsDone': function('copilot#panel#SolutionsDone'),
         \ },
@@ -611,11 +601,25 @@ function! s:VerifySetup() abort
     echo 'Copilot: Telemetry terms not accepted. Invoke :Copilot setup'
     return
   endif
+
+  if status.status ==# 'NotAuthorized'
+    echo "Copilot: You don't have access to GitHub Copilot. Sign up by visiting https://github.com/settings/copilot"
+    return
+  endif
+
   return 1
 endfunction
 
 function! s:commands.status(opts) abort
   if !s:VerifySetup()
+    return
+  endif
+
+  if exists('s:agent.status.status') && s:agent.status.status =~# 'Warning\|Error'
+    echo 'Copilot: ' . s:agent.status.status
+    if !empty(get(s:agent.status, 'message', ''))
+      echon ': ' . s:agent.status.message
+    endif
     return
   endif
 
@@ -625,24 +629,7 @@ function! s:commands.status(opts) abort
     return
   endif
 
-  let startup_error = copilot#Agent().StartupError()
-  if !empty(startup_error)
-      echo 'Copilot: ' . startup_error
-      return
-  endif
-
-  if exists('s:agent_error')
-    echo 'Copilot: ' . s:agent_error
-    return
-  endif
-
-  let status = copilot#Call('checkStatus', {})
-  if status.status ==# 'NotAuthorized'
-    echo 'Copilot: Not authorized'
-    return
-  endif
-
-  echo 'Copilot: Enabled and online'
+  echo 'Copilot: Ready'
   call s:EditorVersionWarning()
   call s:NodeVersionWarning()
 endfunction

@@ -51,7 +51,7 @@ function! s:RejectRequest(request, error) abort
   if empty(reject)
     call copilot#logger#Error(msg)
   else
-    call copilot#logger#Warn(msg)
+    call copilot#logger#Debug(msg)
   endif
 endfunction
 
@@ -185,7 +185,7 @@ function! s:RegisterWorkspaceFolderForBuffer(agent, buf) abort
     return
   endif
   let a:agent.workspaceFolders[root] = v:true
-  call a:agent.Notify('workspace/didChangeWorkspaceFolders', {'event': {'added': [{'uri': root, 'name': fnamemodify(root, ':t')}]}})
+  call a:agent.Notify('workspace/didChangeWorkspaceFolders', {'event': {'added': [{'uri': root, 'name': fnamemodify(root, ':t')}], 'removed': []}})
 endfunction
 
 function! s:PreprocessParams(agent, params) abort
@@ -275,7 +275,7 @@ endfunction
 
 function! s:DispatchMessage(agent, method, handler, id, params, ...) abort
   try
-    let response = {'result': call(a:handler, [a:params])}
+    let response = {'result': call(a:handler, [a:params, a:agent])}
     if response.result is# 0
       let response.result = v:null
     endif
@@ -283,7 +283,7 @@ function! s:DispatchMessage(agent, method, handler, id, params, ...) abort
     call copilot#logger#Exception('lsp.request.' . a:method)
     let response = {'error': {'code': -32000, 'message': v:exception}}
   endtry
-  if !empty(a:id)
+  if a:id isnot# v:null
     call s:Send(a:agent, extend({'id': a:id}, response))
   endif
   return response
@@ -556,12 +556,18 @@ function! s:AgentStartupError() dict abort
   endif
 endfunction
 
+function! s:StatusNotification(params, agent) abort
+  call copilot#logger#Info('StatusNotification ' . string(a:params))
+  let a:agent.status = a:params
+endfunction
+
 function! s:Nop(...) abort
   return v:null
 endfunction
 
 let s:common_handlers = {
       \ 'featureFlagsNotification': function('s:Nop'),
+      \ 'statusNotification': function('s:StatusNotification'),
       \ 'window/logMessage': function('copilot#handlers#window_logMessage'),
       \ }
 
@@ -579,6 +585,7 @@ function! copilot#agent#New(...) abort
   let opts = a:0 ? a:1 : {}
   let instance = {'requests': {},
         \ 'workspaceFolders': {},
+        \ 'status': {'status': 'Starting', 'message': ''},
         \ 'Close': function('s:AgentClose'),
         \ 'Notify': function('s:AgentNotify'),
         \ 'Request': function('s:AgentRequest'),

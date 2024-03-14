@@ -1,8 +1,8 @@
-function! copilot#handlers#window_logMessage(params) abort
+function! copilot#handlers#window_logMessage(params, ...) abort
   call copilot#logger#Raw(get(a:params, 'type', 6), get(a:params, 'message', ''))
 endfunction
 
-function! copilot#handlers#window_showMessageRequest(params) abort
+function! copilot#handlers#window_showMessageRequest(params, ...) abort
   let choice = inputlist([a:params.message . "\n\nRequest Actions:"] +
         \ map(copy(get(a:params, 'actions', [])), { i, v -> (i + 1) . '. ' . v.title}))
   return choice > 0 ? get(a:params.actions, choice - 1, v:null) : v:null
@@ -12,7 +12,7 @@ function! s:BrowserCallback(into, code) abort
   let a:into.code = a:code
 endfunction
 
-function! copilot#handlers#window_showDocument(params) abort
+function! copilot#handlers#window_showDocument(params, ...) abort
   echo a:params.uri
   if empty(get(a:params, 'external'))
     return {'success': v:false}
