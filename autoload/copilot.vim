@@ -494,7 +494,7 @@ function! copilot#Accept(...) abort
     call s:ClearPreview()
     let s:suggestion_text = text
     return repeat("\<Left>\<Del>", s.outdentSize) . repeat("\<Del>", s.deleteSize) .
-            \ "\<C-R>\<C-O>=copilot#TextQueuedForInsertion()\<CR>" . (a:0 > 1 ? '' : "\<End>")
+            \ "\<C-R>\<C-R>=copilot#TextQueuedForInsertion()\<CR>" . (a:0 > 1 ? '' : "\<End>")
   endif
   let default = get(g:, 'copilot_tab_fallback', pumvisible() ? "\<C-N>" : "\t")
   if !a:0
