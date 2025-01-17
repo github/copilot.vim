@@ -48,6 +48,30 @@ Terms](https://docs.github.com/en/site-policy/github-terms/github-terms-for-addi
           git clone https://github.com/github/copilot.vim.git `
             $HOME/AppData/Local/nvim/pack/github/start/copilot.vim
 
+    * Neovim using Lazy package manager.
+      
+      Add the following block to your Lazy.nvim configuration:
+
+        ```lua
+        {
+          'github/copilot.vim',
+          event = "InsertEnter",
+          config = function()
+            -- Disable Tab key mapping to prevent conflicts
+            vim.g.copilot_no_tab_map = true
+            vim.api.nvim_set_keymap("i", "<C-J>", 'copilot#Accept("<CR>")', { expr = true, silent = true })
+        
+            -- Enable Copilot for specific file types
+            vim.g.copilot_filetypes = {
+              ["*"] = false,
+              python = true,
+              javascript = true,
+              lua = true,
+            }
+          end,
+        }
+    The above sets the accept mapping to `CTRL J`, it is helpful if you have the Tab key mapped for something else. Remove it is the Tab Key is not mapped.
+
 4.  Start Vim/Neovim and invoke `:Copilot setup`.
 
 [Node.js]: https://nodejs.org/en/download/
