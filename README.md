@@ -10,14 +10,6 @@ Copilot.vim is a Vim/Neovim plugin for GitHub Copilot.
 To learn more, visit
 [https://github.com/features/copilot](https://github.com/features/copilot).
 
-## Subscription
-
-GitHub Copilot requires a subscription.  It is free for verified students and
-maintainers of popular open source projects on GitHub.
-
-GitHub Copilot is subject to the [GitHub Additional Product
-Terms](https://docs.github.com/en/site-policy/github-terms/github-terms-for-additional-products-and-features).
-
 ## Getting started
 
 1.  Install [Neovim][] or the latest patch of [Vim][] (9.0.0185 or newer).
