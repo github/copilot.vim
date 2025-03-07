@@ -112,9 +112,3 @@ let s:dir = expand('<sfile>:h:h')
 if getftime(s:dir . '/doc/copilot.txt') > getftime(s:dir . '/doc/tags')
   silent! execute 'helptags' fnameescape(s:dir . '/doc')
 endif
-
-" Source the copilot_chat.vim file
-source /Users/bradbd/Documents/Github/copilot.vim/copilot_chat.vim
-
-" Add key mapping to open Copilot Chat
-nnoremap <leader>cc :CopilotChat<CR>

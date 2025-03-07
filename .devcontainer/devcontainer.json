@@ -1,0 +1,4 @@
+{
+    "dockerFile": "Dockerfile",
+    "postStartCommand": "cp .devcontainer/vimrc ~/.vimrc && vim +PluginInstall +qall && cp -r * ~/.vim/bundle/copilot.vim/"
+}

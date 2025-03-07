@@ -1,3 +1,6 @@
+let s:plugin_dir = expand('<sfile>:p:h')
+let s:token_file = s:plugin_dir . '/copilot_token'
+
 function! CopilotChat()
   " Open a new split window for the chat
   split
@@ -64,10 +67,11 @@ function! GetBearerToken()
     let l:curl_cmd .= '-H "' . header . '" '
   endfor
   let l:curl_cmd .= "-d '" . l:token_data . "' " . l:token_url
-  echom l:curl_cmd
 
   " Execute the curl command
   let l:response = system(l:curl_cmd)
+  echom 'Response: ' . l:response
+  exit(1)
 
   " Check for errors in the response
   if v:shell_error != 0
@@ -141,7 +145,7 @@ function! GetChatToken()
 
   " Execute the curl command
   let l:response = system(l:curl_cmd)
-  echom l:response
+  echo l:response
 
   " Check for errors in the response
   if v:shell_error != 0
@@ -154,8 +158,11 @@ function! GetChatToken()
   return l:json_response.token
 endfunction
 
+function! CheckDeviceToken()
+endfunction
+
 function! CopilotAPIRequest(message)
-  " Replace with actual API call logic
+  "CheckDeviceToken()
   let l:url = 'https://api.githubcopilot.com/chat/completions'
   if exists('$COPILOT_BEARER_TOKEN')
     let l:bearer_token = $COPILOT_BEARER_TOKEN
@@ -228,3 +235,6 @@ command! SubmitChatMessage call SubmitChatMessage()
 
 " Add key mapping to submit chat message
 nnoremap <buffer> <leader>cs :SubmitChatMessage<CR>
+
+" Add key mapping to open Copilot Chat
+nnoremap <leader>cc :CopilotChat<CR>
