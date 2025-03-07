@@ -1,5 +1,9 @@
-let s:plugin_dir = expand('<sfile>:p:h')
-let s:token_file = s:plugin_dir . '/copilot_token'
+scriptencoding utf-8
+
+let s:plugin_dir = expand('<sfile>:p:h:h')
+let s:device_token_file = s:plugin_dir . "/.device_token"
+let s:chat_token_file = s:plugin_dir . "/.chat_token"
+
 
 function! CopilotChat()
   " Open a new split window for the chat
@@ -30,7 +34,7 @@ function! SubmitChatMessage()
   let l:response = CopilotAPIRequest(l:message)
 
   " Append the parsed response to the buffer
-  call append(line('$'), 'Copilot: ' . l:response)
+  call append(line('$'), split(l:response, "\n"))
 
   " Move cursor to the end of the buffer
   normal! G
@@ -39,14 +43,6 @@ endfunction
 function! GetBearerToken()
   " Replace with actual token setup and device registry logic
   let l:token_url = 'https://github.com/login/device/code'
-  " headers = {
-  "   'accept': 'application/json',
-  "   'editor-version': 'Neovim/0.6.1',
-  "   'editor-plugin-version': 'copilot.vim/1.16.0',
-  "   'content-type': 'application/json',
-  "   'user-agent': 'GithubCopilot/1.155.0',
-  "   'accept-encoding': 'gzip,deflate,br'
-  " }
 
   let l:token_headers = [
         \ 'Accept: application/json',
@@ -70,8 +66,6 @@ function! GetBearerToken()
 
   " Execute the curl command
   let l:response = system(l:curl_cmd)
-  echom 'Response: ' . l:response
-  exit(1)
 
   " Check for errors in the response
   if v:shell_error != 0
@@ -86,10 +80,8 @@ function! GetBearerToken()
   let l:verification_uri = l:json_response.verification_uri
 
   " Display the user code and verification URI to the user
-  echom 'Please visit ' . l:verification_uri . ' and enter the code: ' . l:user_code
-
-  " Wait for the user to complete the device verification
-  sleep 30
+  echo 'Please visit ' . l:verification_uri . ' and enter the code: ' . l:user_code
+  call input("Press Enter to continue...\n")
 
   " Poll the token endpoint to get the Bearer token
   let l:token_poll_url = 'https://github.com/login/oauth/access_token'
@@ -118,18 +110,18 @@ function! GetBearerToken()
   " Parse the response to get the Bearer token
   let l:json_response = json_decode(l:response)
   let l:bearer_token = l:json_response.access_token
-  let $COPILOT_BEARER_TOKEN = l:bearer_token
+  call writefile([l:bearer_token], s:device_token_file)
 
   " Return the Bearer token
   return l:bearer_token
 endfunction
 
-function! GetChatToken()
+function! GetChatToken(bearer_token)
   let l:token_url = 'https://api.github.com/copilot_internal/v2/token'
   let l:token_headers = [
         \ 'Content-Type: application/json',
         \ 'Editor-Version: vscode/1.80.1',
-        \ 'Authorization: token ' . $COPILOT_BEARER_TOKEN,
+        \ 'Authorization: token ' . a:bearer_token,
         \ ]
   let l:token_data = json_encode({
         \ 'client_id': 'Iv1.b507a08c87ecfe98',
@@ -164,13 +156,16 @@ endfunction
 function! CopilotAPIRequest(message)
   "CheckDeviceToken()
   let l:url = 'https://api.githubcopilot.com/chat/completions'
-  if exists('$COPILOT_BEARER_TOKEN')
-    let l:bearer_token = $COPILOT_BEARER_TOKEN
+
+  if filereadable(s:device_token_file)
+    echo "READING DEVICE TOKEN"
+    let l:bearer_token = join(readfile(s:device_token_file), "\n")
+    echo l:bearer_token
   else
     let l:bearer_token = GetBearerToken()
   endif
 
-  let l:chat_token = GetChatToken()
+  let l:chat_token = GetChatToken(l:bearer_token)
   let l:headers = [
         \ 'Content-Type: application/json',
         \ 'Authorization: Bearer ' . l:chat_token,
@@ -218,7 +213,7 @@ function! CopilotAPIRequest(message)
       try
         let l:result .= l:json_completion.choices[0].delta.content
       catch
-        let l:result .= '\\n'
+        let l:result .= "\n"
       endtry
     endif
   endfor
