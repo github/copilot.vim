@@ -6,5 +6,6 @@ set rtp+=~/.vim/bundle/Vundle.vim
 call vundle#begin()
 Plugin 'VundleVim/Vundle.vim'
 Plugin 'DanBradbury/copilot.vim'
+Plugin 'preservim/vim-markdown'
 call vundle#end()            " required
 filetype plugin indent on    " required

@@ -4,7 +4,6 @@ let s:plugin_dir = expand('<sfile>:p:h:h')
 let s:device_token_file = s:plugin_dir . "/.device_token"
 let s:chat_token_file = s:plugin_dir . "/.chat_token"
 
-
 function! CopilotChat()
   " Open a new split window for the chat
   split
@@ -15,33 +14,24 @@ function! CopilotChat()
   setlocal nonumber
   setlocal norelativenumber
   setlocal wrap
+  set filetype=markdown
 
   " Set the buffer name to indicate it's a chat window
   file CopilotChat
 
-  " Add initial message
   call append(0, 'Welcome to Copilot Chat! Type your message below:')
 
-  " Move cursor to the end of the buffer
   normal! G
 endfunction
 
 function! SubmitChatMessage()
-  " Get the last line of the buffer (user's message)
+  " TODO: this should be grabbing the full prompt between the separators
   let l:message = getline('$')
 
-  " Call the CoPilot API to get a response
-  let l:response = CopilotAPIRequest(l:message)
-
-  " Append the parsed response to the buffer
-  call append(line('$'), split(l:response, "\n"))
-
-  " Move cursor to the end of the buffer
-  normal! G
+  call AsyncRequest(l:message)
 endfunction
 
 function! GetBearerToken()
-  " Replace with actual token setup and device registry logic
   let l:token_url = 'https://github.com/login/device/code'
 
   let l:token_headers = [
@@ -137,7 +127,7 @@ function! GetChatToken(bearer_token)
 
   " Execute the curl command
   let l:response = system(l:curl_cmd)
-  echo l:response
+  "echo l:response
 
   " Check for errors in the response
   if v:shell_error != 0
@@ -151,85 +141,76 @@ function! GetChatToken(bearer_token)
 endfunction
 
 function! CheckDeviceToken()
+    " fetch models
+    " if the call fails we should get a new chat token and update the file
 endfunction
 
-function! CopilotAPIRequest(message)
-  "CheckDeviceToken()
-  let l:url = 'https://api.githubcopilot.com/chat/completions'
+function! AsyncRequest(message)
+    let s:curl_output = []
+    let l:url = 'https://api.githubcopilot.com/chat/completions'
 
-  if filereadable(s:device_token_file)
-    echo "READING DEVICE TOKEN"
-    let l:bearer_token = join(readfile(s:device_token_file), "\n")
-    echo l:bearer_token
-  else
-    let l:bearer_token = GetBearerToken()
-  endif
-
-  let l:chat_token = GetChatToken(l:bearer_token)
-  let l:headers = [
-        \ 'Content-Type: application/json',
-        \ 'Authorization: Bearer ' . l:chat_token,
-        \ 'Editor-Version: vscode/1.80.1'
-        \ ]
-  let l:messages = [{'content': a:message, 'role': 'user'}]
-  let l:data = json_encode({
-        \ 'intent': v:false,
-        \ 'model': 'gpt-4o',
-        \ 'temperature': 0,
-        \ 'top_p': 1,
-        \ 'n': 1,
-        \ 'stream': v:true,
-        \ 'messages': l:messages
-        \ })
-
-  " Construct the curl command as a single string
-  let l:curl_cmd = 'curl -s -X POST '
-  for header in l:headers
-    let l:curl_cmd .= '-H "' . header . '" '
-  endfor
-  let l:curl_cmd .= "-d '" . l:data . "' " . l:url
-
-  " Print the curl command for debugging
-  echom l:curl_cmd
-
-  " Execute the curl command
-  let l:response = system(l:curl_cmd)
-
-  " Print the raw response for debugging
-  echom 'Response: ' . l:response
-
-  " Check for errors in the response
-  if v:shell_error != 0
-    echom 'Error: ' . v:shell_error
-    return 'Error: ' . l:response
-  endif
-
-  " Parse the response
-  let l:result = ''
-  let l:resp_text_lines = split(l:response, "\n")
-  for line in l:resp_text_lines
-    if line =~ '^data: {'
-      let l:json_completion = json_decode(line[6:])
-      try
-        let l:result .= l:json_completion.choices[0].delta.content
-      catch
-        let l:result .= "\n"
-      endtry
+    if filereadable(s:device_token_file)
+      let l:bearer_token = join(readfile(s:device_token_file), "\n")
+    else
+      let l:bearer_token = GetBearerToken()
     endif
-  endfor
-
-  " Return the parsed response
-  return l:result
+  
+    let l:chat_token = GetChatToken(l:bearer_token)
+    let l:messages = [{'content': a:message, 'role': 'user'}]
+    let l:data = json_encode({
+          \ 'intent': v:false,
+          \ 'model': 'gpt-4o',
+          \ 'temperature': 0,
+          \ 'top_p': 1,
+          \ 'n': 1,
+          \ 'stream': v:true,
+          \ 'messages': l:messages
+          \ })
+    
+    let l:curl_cmd = [
+        \ "curl",
+        \ "-s",
+        \ "-X",
+        \ "POST",
+        \ "-H",
+        \ "Content-Type: application/json",
+        \ "-H", "Authorization: Bearer " . l:chat_token,
+        \ "-H", "Editor-Version: vscode/1.80.1",
+        \ "-d",
+        \ l:data,
+        \ l:url]
+    
+    let job = job_start(l:curl_cmd, {'out_cb': function('HandleCurlOutput'), 'exit_cb': function('HandleCurlClose'), 'err_cb': function('HandleCurlError')})
+    return job
 endfunction
 
-" Map the command to open the chat
-command! CopilotChat call CopilotChat()
+function! HandleCurlError(channel, msg)
+    echom "handling curl error"
+    echom a:msg
+endfunction
 
-" Map the command to submit a chat message
+function! HandleCurlClose(channel, msg)
+    let l:result = ''
+    for line in s:curl_output
+        if line =~ '^data: {'
+          let l:json_completion = json_decode(line[6:])
+          try
+            let l:result .= l:json_completion.choices[0].delta.content
+          catch
+            let l:result .= "\n"
+          endtry
+        endif
+      endfor
+      call append(line('$'), split(l:result, "\n"))
+      normal! G
+endfunction
+
+function! HandleCurlOutput(channel, msg)
+    call add(s:curl_output, a:msg)
+endfunction
+
+command! CopilotChat call CopilotChat()
 command! SubmitChatMessage call SubmitChatMessage()
 
-" Add key mapping to submit chat message
 nnoremap <buffer> <leader>cs :SubmitChatMessage<CR>
-
-" Add key mapping to open Copilot Chat
 nnoremap <leader>cc :CopilotChat<CR>
