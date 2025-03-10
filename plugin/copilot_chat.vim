@@ -12,9 +12,17 @@ let s:token_headers = [
   \ 'Content-Type: application/json',
   \ ]
 
+function! UserInputSeparator()
+  let l:width = winwidth(0)-2
+  let l:separator = " "
+  let l:separator .= repeat('━', l:width)
+  call append(line('$'), l:separator)
+  call append(line('$'), '')
+endfunction
+
 function! CopilotChat()
   " Open a new split window for the chat
-  split
+  vsplit
   enew
   setlocal buftype=nofile
   setlocal bufhidden=hide
@@ -27,14 +35,26 @@ function! CopilotChat()
   " Set the buffer name to indicate it's a chat window
   file CopilotChat
 
+  syntax match CopilotWelcome /^Welcome to Copilot Chat!.*$/
+  syntax match CopilotSeparatorIcon /^/ containedin=CopilotSeparatorLine
+  syntax match CopilotSeparatorIcon /^/ containedin=CopilotSeparatorLine
+  syntax match CopilotSeparatorLine / ━\+$/
+  
+  highlight CopilotWelcome ctermfg=205 guifg=#ff69b4
+  highlight CopilotSeparatorIcon ctermfg=45 guifg=#00d7ff
+  highlight CopilotSeparatorLine ctermfg=205 guifg=#ff69b4
+
   call append(0, 'Welcome to Copilot Chat! Type your message below:')
+  call UserInputSeparator()
 
   normal! G
 endfunction
 
 function! SubmitChatMessage()
-  " TODO: this should be grabbing the full prompt between the separators
-  let l:message = getline('$')
+  let l:separator_line = search(' ━\+$', 'nw')
+  let l:start_line = l:separator_line + 1
+  let l:end_line = line('$')
+  let l:message = join(getline(l:start_line, l:end_line), "\n")
 
   call AsyncRequest(l:message)
 endfunction
@@ -139,6 +159,17 @@ function! CheckDeviceToken()
     " if the call fails we should get a new chat token and update the file
 endfunction
 
+function! UpdateWaitingDots()
+  let l:line = line('$')
+  let l:current_text = getline(l:line)
+  if l:current_text =~ '^Waiting for response'
+      let l:dots = len(matchstr(l:current_text, '\..*$'))
+      let l:new_dots = (l:dots % 3) + 1
+      call setline(l:line, 'Waiting for response' . repeat('.', l:new_dots))
+  endif
+  return 1
+endfunction
+
 function! AsyncRequest(message)
     let s:curl_output = []
     let l:url = 'https://api.githubcopilot.com/chat/completions'
@@ -150,6 +181,9 @@ function! AsyncRequest(message)
     endif
   
     let l:chat_token = GetChatToken(l:bearer_token)
+    call append(line('$'), "Waiting for response")
+    let s:waiting_timer = timer_start(500, {-> UpdateWaitingDots()}, {'repeat': -1})
+
     let l:messages = [{'content': a:message, 'role': 'user'}]
     let l:data = json_encode({
           \ 'intent': v:false,
@@ -186,17 +220,26 @@ endfunction
 function! HandleCurlClose(channel, msg)
     let l:result = ''
     for line in s:curl_output
-        if line =~ '^data: {'
-          let l:json_completion = json_decode(line[6:])
-          try
-            let l:result .= l:json_completion.choices[0].delta.content
-          catch
-            let l:result .= "\n"
-          endtry
-        endif
-      endfor
-      call append(line('$'), split(l:result, "\n"))
-      normal! G
+      if line =~ '^data: {'
+        let l:json_completion = json_decode(line[6:])
+        try
+          let l:content = l:json_completion.choices[0].delta.content
+          if type(l:content) != type(v:null)
+            let l:result .= l:content
+          endif
+        catch
+          let l:result .= "\n"
+        endtry
+      endif
+    endfor
+
+    let l:width = winwidth(0)-2
+    let l:separator = " "
+    let l:separator .= repeat('━', l:width)
+    call append(line('$'), l:separator)
+    call append(line('$'), split(l:result, "\n"))
+    call UserInputSeparator()
+    normal! G
 endfunction
 
 function! HandleCurlOutput(channel, msg)
