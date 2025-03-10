@@ -59,26 +59,15 @@ function HttpIt(method, url, headers, body)
     let l:ps_cmd .= '"'
     let l:response = system(l:ps_cmd)
   else
-    let l:token_headers = [
-      \ 'Accept: application/json',
-      \ 'User-Agent: GithubCopilot/1.155.0',
-      \ 'Accept-Encoding: gzip,deflate,br',
-      \ 'Editor-Plugin-Version: copilot.vim/1.16.0',
-      \ 'Editor-Version: Neovim/0.6.1',
-      \ 'Content-Type: application/json',
-      \ ]
     let l:token_data = json_encode(a:body)
 
-    " Construct the curl command for token setup
-    let l:curl_cmd = 'curl -s -X POST --compressed '
+    let l:curl_cmd = 'curl -s -X ' . a:method . ' --compressed '
     for header in a:headers
       let l:curl_cmd .= '-H "' . header . '" '
     endfor
-    let l:curl_cmd .= "-d '" . l:token_data . "' " . l:token_url
+    let l:curl_cmd .= "-d '" . l:token_data . "' " . a:url
 
     let l:response = system(l:curl_cmd)
-
-    " Check for errors in the response
     if v:shell_error != 0
       echom 'Error: ' . v:shell_error
       return ''

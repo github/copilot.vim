@@ -1,4 +1,11 @@
 {
     "dockerFile": "Dockerfile",
-    "postStartCommand": "cp .devcontainer/vimrc ~/.vimrc && vim +PluginInstall +qall && cp -r * ~/.vim/bundle/copilot.vim/"
+    "postStartCommand": "cp .devcontainer/vimrc ~/.vimrc && vim +PluginInstall +qall && cp -r * ~/.vim/bundle/copilot.vim/",
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "XadillaX.viml"
+            ]
+        }
+    }
 }
