@@ -28,7 +28,7 @@ copilot.lsp_start_client = function(cmd, handler_names, opts, settings)
   if #workspace_folders == 0 then
     workspace_folders = nil
   end
-  id = vim.lsp.start_client({
+  id = vim.lsp.start({
     cmd = cmd,
     cmd_cwd = vim.call('copilot#job#Cwd'),
     name = 'GitHub Copilot',
