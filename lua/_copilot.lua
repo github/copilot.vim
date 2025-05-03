@@ -28,6 +28,9 @@ copilot.lsp_start_client = function(cmd, handler_names, opts, settings)
   if #workspace_folders == 0 then
     workspace_folders = nil
   end
+  -- start_client() is deprecated, but the replacement start() breaks our
+  -- restart workflow by returning the old client that's shutting down.
+  -- https://github.com/neovim/neovim/issues/33616
   id = vim.lsp.start_client({
     cmd = cmd,
     cmd_cwd = vim.call('copilot#job#Cwd'),
@@ -60,9 +63,14 @@ copilot.lsp_request = function(client_id, method, params, bufnr)
     bufnr = nil
   end
   local _, id
-  _, id = client.request(method, params, function(err, result)
+  local handler = function(err, result)
     vim.call('copilot#client#LspResponse', client_id, { id = id, error = err, result = result })
-  end, bufnr)
+  end
+  if vim.fn.has('nvim-0.11') == 1 then
+    _, id = client:request(method, params, handler, bufnr)
+  else
+    _, id = client.request(method, params, handler, bufnr)
+  end
   return id
 end
 

@@ -1,11 +1,3 @@
-if !exists('s:log_file')
-  let s:log_file = tempname() . '-copilot.log'
-  try
-    call writefile([], s:log_file)
-  catch
-  endtry
-endif
-
 let s:logs = []
 
 function! copilot#logger#BufReadCmd() abort
@@ -26,9 +18,6 @@ function! copilot#logger#Raw(level, message) abort
   let lines = type(a:message) == v:t_list ? copy(a:message) : split(a:message, "\n", 1)
   let lines[0] = strftime('[%Y-%m-%d %H:%M:%S] ') . get(s:level_prefixes, a:level, '[UNKNOWN] ') . get(lines, 0, '')
   try
-    if !filewritable(s:log_file)
-      return
-    endif
     call map(lines, { k, L -> type(L) == v:t_func ? call(L, []) : L })
     call extend(s:logs, lines)
     let overflow = len(s:logs) - get(g:, 'copilot_log_history', 10000)

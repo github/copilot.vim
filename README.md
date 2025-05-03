@@ -1,22 +1,20 @@
 # GitHub Copilot for Vim and Neovim
 
-GitHub Copilot uses OpenAI Codex to suggest code and entire functions in
-real-time right from your editor.  Trained on billions of lines of public
-code, GitHub Copilot turns natural language prompts including comments and
-method names into coding suggestions across dozens of languages.
+GitHub Copilot is an AI pair programmer tool that helps you write code faster
+and smarter. Trained on billions of lines of public code, GitHub Copilot turns
+natural language prompts including comments and method names into coding
+suggestions across dozens of languages.
 
 Copilot.vim is a Vim/Neovim plugin for GitHub Copilot.
 
 To learn more, visit
 [https://github.com/features/copilot](https://github.com/features/copilot).
 
-## Subscription
+## Getting access to GitHub Copilot
 
-GitHub Copilot requires a subscription.  It is free for verified students and
-maintainers of popular open source projects on GitHub.
-
-GitHub Copilot is subject to the [GitHub Additional Product
-Terms](https://docs.github.com/en/site-policy/github-terms/github-terms-for-additional-products-and-features).
+To access GitHub Copilot, an active GitHub Copilot subscription is required.
+Sign up for [GitHub Copilot Free](https://github.com/settings/copilot), or
+request access from your enterprise admin.
 
 ## Getting started
 
@@ -60,5 +58,5 @@ See `:help copilot` for more information.
 ## Troubleshooting
 
 We’d love to get your help in making GitHub Copilot better!  If you have
-feedback or encounter any problems, please reach out on our [Feedback
-forum](https://github.com/orgs/community/discussions/categories/copilot).
+feedback or encounter any problems, please reach out on our [feedback
+forum](https://github.com/github/copilot.vim/issues).

@@ -86,9 +86,11 @@ function! copilot#panel#Accept(...) abort
     endif
     let lines = split(item.insertText, "\n", 1)
     let old_first = getbufline(state.bufnr, item.range.start.line + 1)[0]
-    let lines[0] = strpart(old_first, 0, copilot#util#UTF16ToByteIdx(old_first, item.range.start.character)) . lines[0]
+    let byte_offset_start = copilot#util#UTF16ToByteIdx(old_first, item.range.start.character)
+    let lines[0] = strpart(old_first, 0, byte_offset_start) . lines[0]
     let old_last = getbufline(state.bufnr, item.range.end.line + 1)[0]
-    let lines[-1] .= strpart(old_last, copilot#util#UTF16ToByteIdx(old_last, item.range.end.character))
+    let byte_offset_end = copilot#util#UTF16ToByteIdx(old_last, item.range.end.character)
+    let lines[-1] .= strpart(old_last, byte_offset_end)
     call deletebufline(state.bufnr, item.range.start.line + 1, item.range.end.line + 1)
     call appendbufline(state.bufnr, item.range.start.line, lines)
     call copilot#Request('workspace/executeCommand', item.command)
@@ -108,7 +110,11 @@ function! copilot#panel#Accept(...) abort
 endfunction
 
 function! s:Initialize(state) abort
-  let &l:filetype = 'copilot' . (empty(a:state.filetype) ? '' : '.' . a:state.filetype)
+  try
+    let &l:filetype = 'copilot' . (empty(a:state.filetype) ? '' : '.' . a:state.filetype)
+  catch
+    let &l:filetype = 'copilot'
+  endtry
   let &l:tabstop = a:state.tabstop
   nmap <buffer><script> <CR> <Cmd>exe copilot#panel#Accept()<CR>
   nmap <buffer><script> [[ <Cmd>call search('^─\{9,}\n.', 'bWe')<CR>
