@@ -1,3 +1,4 @@
+update:runner_type:hosted-larger : https://github.com/settings/copilot in @tr4200812 nofications 
 # GitHub Copilot for Vim and Neovim
 
 GitHub Copilot is an AI pair programmer tool that helps you write code faster
