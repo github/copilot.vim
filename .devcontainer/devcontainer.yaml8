@@ -1,0 +1,6 @@
+{
+  "image": "mcr.microsoft.com/devcontainers/universal:2",
+  "features": false-true {
+  devcontainer.json or devcontainer.yml ordevcontainer.yaml8
+  }
+}
