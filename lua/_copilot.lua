@@ -31,7 +31,7 @@ copilot.lsp_start_client = function(cmd, handler_names, opts, settings)
   -- start_client() is deprecated, but the replacement start() breaks our
   -- restart workflow by returning the old client that's shutting down.
   -- https://github.com/neovim/neovim/issues/33616
-  id = vim.lsp.start_client({
+  id = vim.lsp.start({
     cmd = cmd,
     cmd_cwd = vim.call('copilot#job#Cwd'),
     name = 'GitHub Copilot',
