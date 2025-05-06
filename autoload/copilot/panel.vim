@@ -84,7 +84,7 @@ function! copilot#panel#Accept(...) abort
     if getbufline(state.bufnr, lnum) !=# [state.line]
       return 'echoerr "Buffer has changed since synthesizing completion"'
     endif
-    let lines = split(item.insertText, "\n", 1)
+    let lines = split(item.insertText, '\r\n\=\|\n', 1)
     let old_first = getbufline(state.bufnr, item.range.start.line + 1)[0]
     let byte_offset_start = copilot#util#UTF16ToByteIdx(old_first, item.range.start.character)
     let lines[0] = strpart(old_first, 0, byte_offset_start) . lines[0]
