@@ -1,2 +1,2 @@
 *.vim eol=lf
-/dist/** -whitespace -diff
+/copilot-language-server/** -whitespace -diff

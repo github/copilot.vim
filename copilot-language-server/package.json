@@ -1,0 +1,36 @@
+{
+    "name": "@github/copilot-language-server",
+    "displayName": "GitHub Copilot Language Server",
+    "description": "Your AI pair programmer",
+    "homepage": "https://github.com/github/copilot-language-server-release",
+    "bugs": {
+        "url": "https://github.com/github/copilot-language-server-release/issues"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/github/copilot-language-server-release.git"
+    },
+    "license": "https://docs.github.com/en/site-policy/github-terms/github-terms-for-additional-products-and-features",
+    "version": "1.319.0",
+    "bin": {
+        "copilot-language-server": "../dist/language-server.js"
+    },
+    "files": [
+        "native/*-*/copilot-language-server*",
+        "dist/language-server.js*",
+        "dist/main.js*",
+        "dist/tree-sitter*.wasm",
+        "dist/compiled/*/*/*.node",
+        "dist/bin/**/*",
+        "dist/resources",
+        "dist/crypt32.node",
+        "dist/api/types.d.ts"
+    ],
+    "main": "./dist/main.js",
+    "types": "./dist/api/types.d.ts",
+    "dependencies": {
+        "vscode-languageserver-protocol": "^3.17.5"
+    },
+    "build": "1559",
+    "buildType": "prod"
+}

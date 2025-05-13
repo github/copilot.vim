@@ -74,6 +74,13 @@ g:copilot_node_command  Tell Copilot what `node` binary to use with
                         let g:copilot_node_command =
                               \ "~/.nodenv/versions/18.18.0/bin/node"
 <
+                                                *g:copilot_enterprise_uri*
+g:copilot_enterprise_uri
+                        If you are using GitHub Copilot Enterprise, set this
+                        to the URI of your GitHub Enterprise instance.
+>
+                        let g:copilot_enterprise_uri = 'https://DOMAIN.ghe.com'
+<
                                                 *g:copilot_proxy*
 g:copilot_proxy         Tell Copilot what proxy server to use.
 >
