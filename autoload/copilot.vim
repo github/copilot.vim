@@ -203,7 +203,8 @@ function! s:SuggestionTextWithAdjustments() abort
     let line = getline('.')
     let offset = col('.') - 1
     let byte_offset = copilot#util#UTF16ToByteIdx(line, choice.range.start.character)
-    let choice_text = strpart(line, 0, byte_offset) . substitute(choice.insertText, "\n*$", '', '')
+    let choice_text = strpart(line, 0, byte_offset) .
+          \ substitute(substitute(choice.insertText, '\r\n\=', '\n', 'g'), '\n*$', '', '')
     let typed = strpart(line, 0, offset)
     let end_offset = copilot#util#UTF16ToByteIdx(line, choice.range.end.character)
     if end_offset < 0
