@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Djamel Gafsi – Portfolio</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #1f2937;
+      --accent: #2563eb;
+      --bg: #f9fafb;
+      --text: #111827;
+    }
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+    }
+    header {
+      background: var(--primary);
+      color: white;
+      padding: 80px 20px;
+      text-align: center;
+      position: relative;
+    }
+    header img {
+      width: 150px;
+      height: 150px;
+      border-radius: 50%;
+      border: 4px solid white;
+      object-fit: cover;
+      margin-bottom: 20px;
+    }
+    nav {
+      background: white;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      position: sticky;
+      top: 0;
+      z-index: 999;
+    }
+    nav ul {
+      display: flex;
+      justify-content: center;
+      gap: 30px;
+      list-style: none;
+      padding: 10px 0;
+    }
+    nav ul li a {
+      color: var(--text);
+      text-decoration: none;
+      font-weight: 600;
+    }
+    section {
+      padding: 60px 20px;
+      max-width: 1000px;
+      margin: auto;
+    }
+    h2 {
+      font-size: 2rem;
+      color: var(--accent);
+      margin-bottom: 20px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 20px;
+    }
+    .card, .feedback, .project, .social {
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+      transition: transform 0.3s ease;
+    }
+    .card:hover, .project:hover, .feedback:hover {
+      transform: translateY(-5px);
+    }
+    img.logo {
+      max-width: 100px;
+      height: auto;
+      margin-bottom: 10px;
+    }
+    .gallery img {
+      width: 100%;
+      border-radius: 10px;
+    }
+    footer {
+      background: var(--primary);
+      color: white;
+      text-align: center;
+      padding: 30px 20px;
+    }
+  </style>
+</head>
+<body>
+  <nav>
+    <ul>
+      <li><a href="#about">À propos</a></li>
+      <li><a href="#skills">Compétences</a></li>
+      <li><a href="#projects">Projets</a></li>
+      <li><a href="#experiences">Expériences</a></li>
+      <li><a href="#contact">Contact</a></li>
+    </ul>
+  </nav>
+
+  <header>
+    <img src="https://via.placeholder.com/150" alt="Djamel Gafsi">
+    <h1>Djamel Gafsi</h1>
+    <p>Débutant en Génie Électrique | Automatisme | Maintenance</p>
+  </header>
+
+  <section id="about">
+    <h2>À propos</h2>
+    <p>Je suis un jeune diplômé passionné de systèmes industriels, d’électricité et de technologies modernes. Curieux, rigoureux et motivé à apprendre continuellement.</p>
+  </section>
+
+  <section id="skills">
+    <h2>Compétences</h2>
+    <div class="grid">
+      <div class="card">⚡ Électricité : câblage, diagnostic, lecture de plans</div>
+      <div class="card">🛠️ Maintenance industrielle : préventive, corrective</div>
+      <div class="card">🤖 Automatisme : API Siemens, logique câblée</div>
+      <div class="card">🧠 Logiciels : AutoCAD, TIA Portal, Excel</div>
+    </div>
+  </section>
+
+  <section id="projects">
+    <h2>Projet de fin d’étude</h2>
+    <div class="project">
+      <p><strong>Système automatisé pour la surveillance industrielle</strong> – Automate Siemens S7-1200, supervision en temps réel, alerte automatique. Réalisé avec AutoCAD et TIA Portal.</p>
+      <div class="gallery grid">
+        <img src="https://images.unsplash.com/photo-1581092919530-d91c5ff4a6e0" alt="API">
+        <img src="https://images.unsplash.com/photo-1571171637578-41bc2dd41cd2" alt="Schéma industriel">
+      </div>
+    </div>
+  </section>
+
+  <section id="experiences">
+    <h2>Expériences professionnelles</h2>
+    <div class="grid">
+      <div class="card">
+        <img src="https://upload.wikimedia.org/wikipedia/commons/3/3f/General_Electric_logo.svg" class="logo" alt="GE">
+        <p><strong>Technicien Électrique</strong> – General Electric</p>
+        <p>Maintenance de systèmes industriels automatisés.</p>
+      </div>
+      <div class="card">
+        <img src="https://upload.wikimedia.org/wikipedia/commons/5/59/Schneider_Electric_2007.svg" class="logo" alt="Schneider">
+        <p><strong>Stage Automatisme</strong> – Schneider Electric</p>
+        <p>Programmation et mise en service d’API.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Activités récentes</h2>
+    <ul>
+      <li>Installation de tableaux industriels (2024)</li>
+      <li>Tests automatisés sur Siemens S7-1200</li>
+      <li>Formation CSA Z462 en sécurité électrique</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Commentaires</h2>
+    <div class="grid">
+      <div class="feedback">"Très motivé et curieux – M. LARBI"</div>
+      <div class="feedback">"Un excellent travail sur notre ligne de production – Ahmed B."</div>
+    </div>
+  </section>
+
+  <section id="contact">
+    <h2>Contact</h2>
+    <div class="grid">
+      <div class="card">📧 djamel@email.com</div>
+      <div class="card">🔗 <a href="https://linkedin.com/in/djamelgafsi">LinkedIn</a></div>
+      <div class="card">📍 Montréal, QC</div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Réseaux sociaux</h2>
+    <div class="grid">
+      <div class="social">🔗 <a href="https://linkedin.com/in/djamelgafsi">LinkedIn</a></div>
+      <div class="social">📸 <a href="#">Instagram</a></div>
+      <div class="social">📘 <a href="#">Facebook</a></div>
+      <div class="social">🐦 <a href="#">Twitter</a></div>
+    </div>
+  </section>
+
+  <footer>
+    &copy; 2025 Djamel Gafsi – Tous droits réservés.
+  </footer>
+</body>
+</html>
