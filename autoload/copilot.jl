@@ -1,116 +1,116 @@
 scriptencoding utf-8
 
-let s:has_nvim_ghost_text = has('nvim-0.7') && exists('*nvim_buf_get_mark')
-let s:vim_minimum_version = '9.0.0185'
-let s:has_vim_ghost_text = has('patch-' . s:vim_minimum_version) && has('textprop')
-let s:has_ghost_text = s:has_nvim_ghost_text || s:has_vim_ghost_text
+ s:has_nvim_ghost_text = has('nvim-0.7') && exists('*nvim_buf_get_mark')
+ s:vim_minimum_version = '9.0.0185'
+ s:has_vim_ghost_text = has('patch-' . s:vim_minimum_version) && has('textprop')
+ s:has_ghost_text = s:has_nvim_ghost_text || s:has_vim_ghost_text
 
-let s:hlgroup = 'CopilotSuggestion'
-let s:annot_hlgroup = 'CopilotAnnotation'
+ s:hlgroup = 'CopilotSuggestion'
+ s:annot_hlgroup = 'CopilotAnnotation'
 
-if s:has_vim_ghost_text && empty(prop_type_get(s:hlgroup))
+ s:has_vim_ghost_text && empty(prop_type_get(s:hlgroup))
   call prop_type_add(s:hlgroup, {'highlight': s:hlgroup})
 endif
-if s:has_vim_ghost_text && empty(prop_type_get(s:annot_hlgroup))
+ s:has_vim_ghost_text && empty(prop_type_get(s:annot_hlgroup))
   call prop_type_add(s:annot_hlgroup, {'highlight': s:annot_hlgroup})
 endif
 
-function! s:Echo(msg) abort
-  if has('nvim') && &cmdheight == 0
-    call v:lua.vim.notify(a:msg, v:null, {'title': 'GitHub Copilot'})
-  else
+! s:Echo(msg) abort
+   has('nvim') && &cmdheight == 0
+    call v:lua.vim.notify(a:msg, v:    , {'title': 'GitHub Copilot'})
+  
     echo a:msg
   endif
 endfunction
 
-function! copilot#Init(...) abort
+       ! copilot#Init(...) abort
   call copilot#util#Defer({ -> exists('s:client') || s:Start() })
 endfunction
 
-function! s:Running() abort
-  return exists('s:client.job') || exists('s:client.client_id')
+      ! s:Running() abort
+        exists('s:client.job') || exists('s:client.client_id')
 endfunction
 
-function! s:Start() abort
-  if s:Running() || exists('s:client.startup_error')
-    return
+     ! s:Start() abort
+     s:Running() || exists('s:client.startup_error')
+    
   endif
-  let s:client = copilot#client#New()
+     s:client = copilot#client#New()
 endfunction
 
-function! s:Stop() abort
-  if exists('s:client')
-    let client = remove(s:, 'client')
+       ! s:Stop() abort
+     exists('s:client')
+        client = remove(s:, 'client')
     call client.Close()
   endif
 endfunction
 
-function! copilot#Client() abort
+      ! copilot#Client() abort
   call s:Start()
-  return s:client
+         s:client
 endfunction
 
-function! copilot#RunningClient() abort
-  if s:Running()
-    return s:client
-  else
-    return v:null
+      ! copilot#RunningClient() abort
+      s:Running()
+        s:client
+  
+        v:
   endif
 endfunction
 
-if has('nvim-0.7') && !has(luaeval('vim.version().api_prerelease') ? 'nvim-0.8.1' : 'nvim-0.8.0')
-  let s:editor_warning = 'Neovim 0.7 support is deprecated and will be dropped in a future release of copilot.vim.'
+  has('nvim-0.7') && !has(luaeval('vim.version().api_prerelease') ? 'nvim-0.8.1' : 'nvim-0.8.0')
+      s:editor_warning = 'Neovim 0.7 support is deprecated and will be dropped in a future release of copilot.vim.'
 endif
-if has('vim_starting') && exists('s:editor_warning')
+   has('vim_starting') && exists('s:editor_warning')
   call copilot#logger#Warn(s:editor_warning)
 endif
-function! s:EditorVersionWarning() abort
-  if exists('s:editor_warning')
+       ! s:EditorVersionWarning() abort
+     exists('s:editor_warning')
     echohl WarningMsg
     echo 'Warning: ' . s:editor_warning
     echohl None
   endif
 endfunction
 
-function! copilot#Request(method, params, ...) abort
-  let client = copilot#Client()
-  return call(client.Request, [a:method, a:params] + a:000)
+       ! copilot#Request(method, params, ...) abort
+      client = copilot#Client()
+       call(client.Request, [a:method, a:params] + a:000)
 endfunction
 
-function! copilot#Call(method, params, ...) abort
-  let client = copilot#Client()
-  return call(client.Call, [a:method, a:params] + a:000)
+    ! copilot#Call(method, params, ...) abort
+      client = copilot#Client()
+      call(client.Call, [a:method, a:params] + a:000)
 endfunction
 
-function! copilot#Notify(method, params, ...) abort
-  let client = copilot#Client()
-  return call(client.Notify, [a:method, a:params] + a:000)
+    ! copilot#Notify(method, params, ...) abort
+     client = copilot#Client()
+       call(client.Notify, [a:method, a:params] + a:000)
 endfunction
 
-function! copilot#NvimNs() abort
-  return nvim_create_namespace('github-copilot')
+     ! copilot#NvimNs() abort
+       nvim_create_namespace('github-copilot')
 endfunction
 
-function! copilot#Clear() abort
-  if exists('g:_copilot_timer')
+     ! copilot#Clear() abort
+     exists('g:_copilot_timer')
     call timer_stop(remove(g:, '_copilot_timer'))
   endif
-  if exists('b:_copilot')
+    exists('b:_copilot')
     call copilot#client#Cancel(get(b:_copilot, 'first', {}))
     call copilot#client#Cancel(get(b:_copilot, 'cycling', {}))
   endif
   call s:UpdatePreview()
   unlet! b:_copilot
-  return ''
+     ''
 endfunction
 
-function! copilot#Dismiss() abort
+      ! copilot#Dismiss() abort
   call copilot#Clear()
   call s:UpdatePreview()
-  return ''
+       ''
 endfunction
 
-let s:filetype_defaults = {
+    s:filetype_defaults = {
       \ 'gitcommit': 0,
       \ 'gitrebase': 0,
       \ 'hgcommit': 0,
@@ -118,67 +118,67 @@ let s:filetype_defaults = {
       \ 'cvs': 0,
       \ '.': 0}
 
-function! s:BufferDisabled() abort
-  if &buftype =~# '^\%(help\|prompt\|quickfix\|terminal\)$'
-    return 5
+        ! s:BufferDisabled() abort
+      &buftype =~# '^\%(help\|prompt\|quickfix\|terminal\)$'
+         5
   endif
-  if exists('b:copilot_disabled')
-    return empty(b:copilot_disabled) ? 0 : 3
+     exists('b:copilot_disabled')
+         empty(b:copilot_disabled) ? 0 : 3
   endif
-  if exists('b:copilot_enabled')
-    return empty(b:copilot_enabled) ? 4 : 0
+     exists('b:copilot_enabled')
+           empty(b:copilot_enabled) ? 4 : 0
   endif
-  let short = empty(&l:filetype) ? '.' : split(&l:filetype, '\.', 1)[0]
-  let config = {}
-  if type(get(g:, 'copilot_filetypes')) == v:t_dict
-    let config = g:copilot_filetypes
+      short = empty(&l:filetype) ? '.' : split(&l:filetype, '\.', 1)[0]
+       config = {}
+     type(get(g:, 'copilot_filetypes')) == v:t_dict
+       config = g:copilot_filetypes
   endif
-  if has_key(config, &l:filetype)
-    return empty(config[&l:filetype])
-  elseif has_key(config, short)
-    return empty(config[short])
-  elseif has_key(config, '*')
-    return empty(config['*'])
-  else
-    return get(s:filetype_defaults, short, 1) == 0 ? 2 : 0
+     has_key(config, &l:filetype)
+          empty(config[&l:filetype])
+        has_key(config, short)
+         empty(config[short])
+        has_key(config, '*')
+       empty(config['*'])
+  
+      get(s:filetype_defaults, short, 1) == 0 ? 2 : 0
   endif
 endfunction
 
-function! copilot#Enabled() abort
-  return get(g:, 'copilot_enabled', 1)
+     ! copilot#Enabled() abort
+      get(g:, 'copilot_enabled', 1)
         \ && empty(s:BufferDisabled())
 endfunction
 
-let s:inline_invoked = 1
-let s:inline_automatic = 2
+    s:inline_invoked = 1
+    s:inline_automatic = 2
 
-function! copilot#Complete(...) abort
-  if exists('g:_copilot_timer')
+      ! copilot#Complete(...) abort
+     exists('g:_copilot_timer')
     call timer_stop(remove(g:, '_copilot_timer'))
   endif
-  let target = [bufnr(''), getbufvar('', 'changedtick'), line('.'), col('.')]
+      target = [bufnr(''), getbufvar('', 'changedtick'), line('.'), col('.')]
   if !exists('b:_copilot.target') || b:_copilot.target !=# target
-    if exists('b:_copilot.first')
+       exists('b:_copilot.first')
       call copilot#client#Cancel(b:_copilot.first)
-    endif
+    end
     if exists('b:_copilot.cycling')
       call copilot#client#Cancel(b:_copilot.cycling)
-    endif
-    let params = {
+    end
+        params = {
           \ 'textDocument': {'uri': bufnr('')},
           \ 'position': copilot#util#AppendPosition(),
           \ 'formattingOptions': {'insertSpaces': &expandtab ? v:true : v:false, 'tabSize': shiftwidth()},
           \ 'context': {'triggerKind': s:inline_automatic}}
-    let b:_copilot = {
+        b:_copilot = {
           \ 'target': target,
           \ 'params': params,
           \ 'first': copilot#Request('textDocument/inlineCompletion', params)}
-    let g:_copilot_last = b:_copilot
-  endif
-  let completion = b:_copilot.first
-  if !a:0
-    return completion.Await()
-  else
+        g:_copilot_last = b:_copilot
+  end
+     completion = b:_copilot.first
+     !a:0
+           completion.Await()
+  
     call copilot#client#Result(completion, function(a:1, [b:_copilot]))
     if a:0 > 1
       call copilot#client#Error(completion, function(a:2, [b:_copilot]))
