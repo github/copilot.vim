@@ -1,0 +1,85 @@
+#include <Servo.h>
+
+const int trigPin = 9;
+const int echoPin = 10;
+const int motorLeft = 5;
+const int motorRight = 6;
+
+Servo servo;
+int angleCenter = 90;
+
+void setup() {
+  pinMode(trigPin, OUTPUT);
+  pinMode(echoPin, INPUT);
+  pinMode(motorLeft, OUTPUT);
+  pinMode(motorRight, OUTPUT);
+  Serial.begin(9600);
+  servo.attach(3);
+  servo.write(angleCenter);
+}
+
+long getDistance() {
+  digitalWrite(trigPin, LOW);
+  delayMicroseconds(2);
+  digitalWrite(trigPin, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(trigPin, LOW);
+  return pulseIn(echoPin, HIGH) * 0.034 / 2;
+}
+
+long getAverageDistance() {
+  long total = 0;
+  for (int i = 0; i < 5; i++) {
+    total += getDistance();
+    delay(10);
+  }
+  return total / 5;
+}
+
+int scanAngle(int angle) {
+  servo.write(angle);
+  delay(300);
+  return getAverageDistance();
+}
+
+void loop() {
+  long distance = getAverageDistance();
+  Serial.println(distance);
+
+  if (distance == 0 || distance > 300) {
+    digitalWrite(motorLeft, LOW);
+    digitalWrite(motorRight, LOW);
+    return;
+  }
+
+  if (distance < 20) {
+    // توقّف مؤقت
+    digitalWrite(motorLeft, LOW);
+    digitalWrite(motorRight, LOW);
+    delay(200);
+
+    // فحص الاتجاهات
+    int left = scanAngle(150);
+    int right = scanAngle(30);
+    servo.write(angleCenter);
+    delay(100);
+
+    if (left > right) {
+      // انعطاف لليسار
+      digitalWrite(motorLeft, HIGH);
+      digitalWrite(motorRight, LOW);
+    } else {
+      // انعطاف لليمين
+      digitalWrite(motorLeft, LOW);
+      digitalWrite(motorRight, HIGH);
+    }
+
+    delay(500);  // وقت الانعطاف
+  } else {
+    // حركة أمامية
+    digitalWrite(motorLeft, HIGH);
+    digitalWrite(motorRight, HIGH);
+  }
+
+  delay(50);  // تخفيف الضغط على الحلقة
+}
