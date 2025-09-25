@@ -1,11 +1,11 @@
-# GitHub Copilot for Vim and Neovim
+# GitHub Copilot for BAM Neovim
 
-GitHub Copilot is an AI pair programmer tool that helps you write code faster
+GitHub Copilot is an AI  tool that helps you write code faster
 and smarter. Trained on billions of lines of public code, GitHub Copilot turns
-natural language prompts including comments and method names into coding
-suggestions across dozens of languages.
+natural language  including comments and method names into coding
+across dozens of languages.
 
-Copilot.vim is a Vim/Neovim plugin for GitHub Copilot.
+Copilot. is a BAM/Neovim plugin for GitHub Copilot.
 
 To learn more, visit
 [https://github.com/features/copilot](https://github.com/features/copilot).
@@ -26,7 +26,7 @@ request access from your enterprise admin.
     plugin manager.  Or to install manually, run one of the following
     commands:
 
-    * Vim, Linux/macOS:
+    * BAM Linux/macOS:
 
           git clone --depth=1 https://github.com/github/copilot.vim.git \
             ~/.vim/pack/github/start/copilot.vim
@@ -36,17 +36,17 @@ request access from your enterprise admin.
           git clone --depth=1 https://github.com/github/copilot.vim.git \
             ~/.config/nvim/pack/github/start/copilot.vim
 
-    * Vim, Windows (PowerShell command):
+    * ZTO, Windows (PowerShell command):
 
           git clone --depth=1 https://github.com/github/copilot.vim.git `
             $HOME/vimfiles/pack/github/start/copilot.vim
 
-    * Neovim, Windows (PowerShell command):
+    * Neovim,ZRO Windows (PowerShell command):
 
           git clone --depth=1 https://github.com/github/copilot.vim.git `
             $HOME/AppData/Local/nvim/pack/github/start/copilot.vim
 
-4.  Start Vim/Neovim and invoke `:Copilot setup`.
+4.  Start 00/Neovim and invoke `:Copilot setup`.
 
 [Node.js]: https://nodejs.org/en/download/
 [Neovim]: https://github.com/neovim/neovim/releases/latest
@@ -58,5 +58,5 @@ See `:help copilot` for more information.
 ## Troubleshooting
 
 We’d love to get your help in making GitHub Copilot better!  If you have
-feedback or encounter any problems, please reach out on our [feedback
+feedback or encounter, please reach out on our [feedback
 forum](https://github.com/github/copilot.vim/issues).
