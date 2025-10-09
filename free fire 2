@@ -1,0 +1,8 @@
+src/map.gd
+src/player.gd
+src/network.gd
+src/safezone.gd
+src/weapon.gd,src/weapons/pistol.gd
+src/ui.gd
+src/lang.gd,/locales/es.json,/locales/en.json
+README.md
