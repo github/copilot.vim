@@ -1,0 +1,7 @@
+{
+    "claudeCodeChatUI.api.useCustomAPI": true,
+    "claudeCodeChatUI.language.enabled": true,
+    "claudeCodeChatUI.mcp.enabled": true,
+    "claudeCodeChatUI.thinking.intensity": "ultrathink",
+    "claudeCodeChatUI.api.key": "AIzaSyCH7W-SOSrlDYK9UERuI1zSyDHkmSzqpM0"
+}
