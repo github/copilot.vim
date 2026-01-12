@@ -536,10 +536,6 @@ function! copilot#AcceptLine(...) abort
   return copilot#Accept(a:0 ? a:1 : "\r", "[^\n]\\+")
 endfunction
 
-function! s:BrowserCallback(into, code) abort
-  let a:into.code = a:code
-endfunction
-
 function! copilot#Browser() abort
   if type(get(g:, 'copilot_browser')) == v:t_list
     let cmd = copy(g:copilot_browser)
@@ -730,19 +726,37 @@ function! s:commands.version(opts) abort
   call s:EditorVersionWarning()
 endfunction
 
-let s:feedback_url = 'https://github.com/github/copilot.vim/issues'
-function! s:commands.feedback(opts) abort
-  echo s:feedback_url
-  let browser = copilot#Browser()
-  if len(browser)
-    call copilot#job#Stream(browser + [s:feedback_url], v:null, v:null, v:null)
-  endif
-endfunction
-
 function! s:commands.restart(opts) abort
   call s:Stop()
   echo 'Copilot: Restarting language server'
   call s:Start()
+endfunction
+
+function! s:AfterUpgrade(old_version, client) abort
+  if exists('a:client.serverInfo.version')
+    call s:Echo('Copilot: Upgraded language server to ' . a:client.serverInfo.version)
+    let g:copilot_version = '^' . a:client.serverInfo.version
+  else
+    call s:Echo('Copilot: Failed to upgrade language server. Check log for details')
+    let g:copilot_version = a:old_version
+    if a:old_version is v:null
+      unlet g:copilot_version
+    endif
+    call s:Start()
+  endif
+endfunction
+
+function! s:commands.upgrade(opts) abort
+  if exists('s:client.serverInfo.version')
+    echo 'Copilot: Upgrading language server from version ' . s:client.serverInfo.version
+  else
+    echo 'Copilot: Upgrading language server'
+  endif
+  let old_version = get(g:, 'copilot_version', v:null)
+  let g:copilot_version = 'latest'
+  call s:Stop()
+  call s:Start()
+  call s:client.AfterInitialized(function('s:AfterUpgrade', [old_version]))
 endfunction
 
 function! s:commands.disable(opts) abort
@@ -756,6 +770,41 @@ endfunction
 function! s:commands.panel(opts) abort
   if s:VerifySetup()
     return copilot#panel#Open(a:opts)
+  endif
+endfunction
+
+function! s:FmtModel(model) abort
+  return a:model.modelName . ' (' . a:model.id . ')'
+endfunction
+
+function! s:commands.model(opts) abort
+  if !s:VerifySetup()
+    return
+  endif
+  let client = copilot#Client()
+  let response = client.Request('copilot/models', {}).Wait()
+  if response.status ==# 'error'
+    return 'echoerr ' . string('Copilot: Error retrieving completions models: ' . response.error.message)
+  endif
+  let models = filter(response.result, { _, m -> index(m.scopes, 'completion') >= 0 })
+  if len(models) == 0
+    echo 'Copilot: Could not retrieve completions models'
+  elseif len(models) == 1
+    echo 'Copilot: Current/only completions model is ' . s:FmtModel(models[0])
+  else
+    let choices = map(copy(models), { i, m -> (i + 1) . '. ' . s:FmtModel(m) })
+    let choice = inputlist(['Select a completions model:'] + choices)
+    if choice < 1 || choice > len(models)
+      return
+    endif
+    let model = models[choice - 1]
+    if type(get(g:, 'copilot_settings')) != v:t_dict
+      let g:copilot_settings = {}
+    endif
+    let g:copilot_settings.selectedCompletionModel = model.id
+    redraw
+    echo 'Copilot: Set completions model to ' . s:FmtModel(model)
+    call client.DidChangeConfiguration()
   endif
 endfunction
 

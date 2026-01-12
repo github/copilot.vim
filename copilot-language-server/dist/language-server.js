@@ -12,14 +12,17 @@ function main() {
     }
 
     if (!argv.includes('--node-ipc')) {
-        const path = require('node:path');
-        const root = path.join(__dirname, '..', '..', `copilot-language-server-${process.platform}-${process.arch}`);
-        const exe = path.join(root, `copilot-language-server${process.platform === 'win32' ? '.exe' : ''}`);
-        const cp = require('node:child_process');
-        const result = cp.spawnSync(exe, argv, {stdio: 'inherit'});
-        if (typeof result.status === 'number') {
-            process.exit(result.status);
-        }
+        const path = require('path');
+        const root = path.join(__dirname, '..');
+        const bin = path.join(
+            `copilot-language-server-${process.platform}-${process.arch}`,
+            `copilot-language-server${process.platform === 'win32' ? '.exe' : ''}`
+        );
+        const cp = require('child_process');
+        const result1 = cp.spawnSync(path.join(root, 'node_modules', '@github', bin), argv, {stdio: 'inherit'});
+        if (typeof result1.status === 'number') process.exit(result1.status);
+        const result2 = cp.spawnSync(path.join(root, '..', bin), argv, {stdio: 'inherit'});
+        if (typeof result2.status === 'number') process.exit(result2.status);
     }
     console.error(`Node.js ${minMajor}.${minMinor} is required to run GitHub Copilot but found ${version}`);
     // An exit code of X indicates a recommended minimum Node.js version of X.0.

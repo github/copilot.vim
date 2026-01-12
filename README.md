@@ -20,7 +20,8 @@ request access from your enterprise admin.
 
 1.  Install [Neovim][] or the latest patch of [Vim][] (9.0.0185 or newer).
 
-2.  Install [Node.js][].
+2.  Install [Node.js][].  If you use a package manager, make sure to install
+    NPM as well (e.g., `apt install nodejs npm` on Debian/Ubuntu).
 
 3.  Install `github/copilot.vim` using vim-plug, lazy.nvim, or any other
     plugin manager.  Or to install manually, run one of the following

@@ -70,7 +70,11 @@ function! s:RejectRequest(request, error) abort
 endfunction
 
 function! s:AfterInitialized(fn, ...) dict abort
-  call add(self.after_initialized, function(a:fn, a:000))
+  call add(self.after_initialized, function(a:fn, [self] + a:000))
+endfunction
+
+function! s:AlreadyInitialized(fn, ...) dict abort
+  return copilot#util#Defer(function(a:fn, [self] + a:000))
 endfunction
 
 function! s:Send(instance, request) abort
@@ -94,7 +98,7 @@ endfunction
 
 function! s:VimNotify(method, params) dict abort
   let request = {'method': a:method, 'params': a:params}
-  call self.AfterInitialized(function('s:Send', [self, request]))
+  call self.AfterInitialized(function('s:Send'), request)
 endfunction
 
 function! s:RequestWait() dict abort
@@ -269,7 +273,7 @@ function! s:VimRequest(method, params, ...) dict abort
   let params = deepcopy(a:params)
   let [_, progress] = s:PreprocessParams(self, params)
   let request = call('s:SetUpRequest', [self, s:id, a:method, params, progress] + a:000)
-  call self.AfterInitialized(function('s:SendRequest', [self, request]))
+  call self.AfterInitialized(function('s:SendRequest'), request)
   let self.requests[s:id] = request
   return request
 endfunction
@@ -369,6 +373,15 @@ function! s:OnErr(instance, ch, line, ...) abort
   endif
 endfunction
 
+function! s:FlushAfterInitialized(instance) abort
+  if has_key(a:instance, 'after_initialized')
+    let a:instance.AfterInitialized = function('s:AlreadyInitialized')
+    for Fn in remove(a:instance, 'after_initialized')
+      call copilot#util#Defer(Fn)
+    endfor
+  endif
+endfunction
+
 function! s:OnExit(instance, code, ...) abort
   let a:instance.exit_status = a:code
   if has_key(a:instance, 'job')
@@ -389,12 +402,7 @@ function! s:OnExit(instance, code, ...) abort
   for id in sort(keys(a:instance.requests), { a, b -> +a > +b })
     call s:RejectRequest(remove(a:instance.requests, id), s:error_exit)
   endfor
-  if has_key(a:instance, 'after_initialized')
-    let a:instance.AfterInitialized = function('copilot#util#Defer')
-    for Fn in remove(a:instance, 'after_initialized')
-      call copilot#util#Defer(Fn)
-    endfor
-  endif
+  call s:FlushAfterInitialized(a:instance)
   call copilot#util#Defer({ -> get(s:instances, a:instance.id) is# a:instance ? remove(s:instances, a:instance.id) : {} })
   if a:code == 0
     call copilot#logger#Info(message)
@@ -444,7 +452,7 @@ function! s:NvimRequest(method, params, ...) dict abort
   let params = deepcopy(a:params)
   let [bufnr, progress] = s:PreprocessParams(self, params)
   let request = call('s:SetUpRequest', [self, v:null, a:method, params, progress] + a:000)
-  call self.AfterInitialized(function('s:NvimDoRequest', [self, request, bufnr]))
+  call self.AfterInitialized(function('s:NvimDoRequest'), request, bufnr)
   return request
 endfunction
 
@@ -473,11 +481,11 @@ function! s:NvimClose() dict abort
 endfunction
 
 function! s:NvimNotify(method, params) dict abort
-  call self.AfterInitialized(function('s:NvimDoNotify', [self.client_id, a:method, a:params]))
+  call self.AfterInitialized(function('s:NvimDoNotify'), a:method, a:params)
 endfunction
 
-function! s:NvimDoNotify(client_id, method, params) abort
-  return eval("v:lua.require'_copilot'.rpc_notify(a:client_id, a:method, a:params)")
+function! s:NvimDoNotify(client, method, params) abort
+  return eval("v:lua.require'_copilot'.rpc_notify(a:client.id, a:method, a:params)")
 endfunction
 
 function! copilot#client#LspHandle(id, request) abort
@@ -488,7 +496,19 @@ function! copilot#client#LspHandle(id, request) abort
 endfunction
 
 function! s:PackageVersion() abort
-  return json_decode(join(readfile(s:root . '/copilot-language-server/package.json'))).version
+  try
+    return json_decode(join(readfile(s:root . '/copilot-language-server/package.json'))).version
+  catch
+  endtry
+  return ''
+endfunction
+
+function! s:GetCommand(var, default) abort
+  let cmd = get(g:, a:var, '')
+  if type(cmd) == type('') && !empty(cmd)
+    return [expand(cmd)]
+  endif
+  return type(cmd) == v:t_list && !empty(cmd) ? copy(cmd) : a:default
 endfunction
 
 let s:script_name = 'copilot-language-server/dist/language-server.js'
@@ -497,11 +517,14 @@ function! s:Command() abort
   if !has('nvim-0.8') && v:version < 900
     return [[], [], 'Vim version too old']
   endif
-  let script = get(g:, 'copilot_command', [])
-  if type(script) == type('')
-    let script = empty(script) ? [] : [expand(script)]
+  let script = s:GetCommand('copilot_command', [])
+  let npx = get(g:, 'copilot_version', get(g:, 'copilot_npx', v:null))
+  if npx is# v:null
+    let npx = empty(script) && !empty(get(g:, 'copilot_npx_command', 1)) ? v:true : v:false
   endif
-  let npx = get(g:, 'copilot_npx', v:false)
+  if type(npx) != v:t_string && !empty(npx)
+    let npx = ''
+  endif
   if type(npx) == v:t_string
     if empty(npx)
       let npx = '^'
@@ -513,11 +536,17 @@ function! s:Command() abort
       let npx = s:pkg_name . npx
     endif
     if npx =~# '@[~<>=^]\+$'
-      let npx .= s:PackageVersion()
+      let pkg_version = s:PackageVersion()
+      if pkg_version =~# '^[1-9]'
+        let npx .= pkg_version
+      else
+        let npx = substitute(npx, '@[=~]$', '@^', '') . '1.0.0'
+      endif
     endif
-    let script = ['npx', npx]
-  elseif !empty(npx)
-    let script = ['npx', s:pkg_name . '@^' . s:PackageVersion()]
+    let script = s:GetCommand('copilot_npx_command', ['npx']) + [npx]
+    if !executable(script[0])
+      let script = []
+    endif
   endif
   if empty(script)
     let script = [s:root . '/' . s:script_name]
@@ -527,12 +556,7 @@ function! s:Command() abort
   elseif !filereadable(script[0])
     return [[], [], 'Could not find ' . script[0]]
   endif
-  let node = get(g:, 'copilot_node_command', '')
-  if empty(node)
-    let node = ['node']
-  elseif type(node) == type('')
-    let node = [expand(node)]
-  endif
+  let node = s:GetCommand('copilot_node_command', ['node'])
   if !executable(get(node, 0, ''))
     if get(node, 0, '') ==# 'node'
       return [[], [], 'Node.js not found in PATH']
@@ -586,10 +610,7 @@ function! s:PostInit(result, instance) abort
   if !has_key(a:instance, 'node_version') && has_key(a:result.serverInfo, 'nodeVersion')
     let a:instance.node_version = a:result.serverInfo.nodeVersion
   endif
-  let a:instance.AfterInitialized = function('copilot#util#Defer')
-  for Fn in remove(a:instance, 'after_initialized')
-    call copilot#util#Defer(Fn)
-  endfor
+  call s:FlushAfterInitialized(a:instance)
 endfunction
 
 function! s:InitializeResult(result, instance) abort
@@ -613,6 +634,16 @@ function! s:StartupError() dict abort
   else
     return get(self, 'startup_error', 'Something unexpected went wrong spawning the language server')
   endif
+endfunction
+
+function! s:VimDidChangeConfiguration() dict abort
+  let settings = copilot#client#Settings()
+  return self.Notify('workspace/didChangeConfiguration', {'settings': settings})
+endfunction
+
+function! s:NvimDidChangeConfiguration() dict abort
+  let settings = copilot#client#Settings()
+  return eval("v:lua.require'_copilot'.did_change_configuration(self.id, settings)")
 endfunction
 
 function! s:StatusNotification(params, instance) abort
@@ -666,6 +697,7 @@ function! copilot#client#New() abort
         \ 'IsAttached': function('s:False'),
         \ 'Call': function('s:Call'),
         \ 'Cancel': function('s:Cancel'),
+        \ 'DidChangeConfiguration': function('s:VimDidChangeConfiguration'),
         \ 'StartupError': function('s:StartupError'),
         \ }
   let instance.methods = copy(s:notifications)
@@ -674,6 +706,7 @@ function! copilot#client#New() abort
     let instance.id = -1
     let instance.startup_error = command_error
     call copilot#logger#Error(command_error)
+    call s:FlushAfterInitialized(instance)
     return instance
   endif
   let instance.node = node
@@ -703,17 +736,38 @@ function! copilot#client#New() abort
     let instance.workspaceFolders[folder.uri] = v:true
   endfor
   call copilot#logger#Debug('Spawning ' . join(command, ' '))
+  let is_win_shell = has('win32') && &shellcmdflag !~# '^-'
+  if is_win_shell && command[0] !~# '[\/]'
+    let exepath = exepath(command[0])
+    if exepath !~? '\.exe$\|^$'
+      let command[0] = fnamemodify(exepath, ':t')
+    endif
+  endif
   if has('nvim')
+    if is_win_shell
+      call map(command, { _, v -> substitute(v, '\^', '^^^^', 'g') })
+    endif
     call extend(instance, {
           \ 'Close': function('s:NvimClose'),
           \ 'Notify': function('s:NvimNotify'),
           \ 'Request': function('s:NvimRequest'),
           \ 'Attach': function('s:NvimAttach'),
+          \ 'DidChangeConfiguration': function('s:NvimDidChangeConfiguration'),
           \ 'IsAttached': function('s:NvimIsAttached'),
           \ })
-    let instance.client_id = eval("v:lua.require'_copilot'.lsp_start_client(command, instance.name, keys(instance.methods), opts, settings)")
+    let id = eval("v:lua.require'_copilot'.lsp_start_client(command, instance.name, keys(instance.methods), opts, settings)")
+    if id is# v:null
+      let instance.id = -1
+      let instance.startup_error = 'Neovim failed to start LSP client'
+      call s:FlushAfterInitialized(instance)
+      return instance
+    endif
+    let instance.client_id = id
     let instance.id = instance.client_id
   else
+    if is_win_shell
+      let command = join(map(command, { _, v -> v =~# '[;&|^ ]' ? '"' . v . '"' : v }), ' ')
+    endif
     call extend(instance, {
           \ 'Close': function('s:VimClose'),
           \ 'Notify': function('s:VimNotify'),

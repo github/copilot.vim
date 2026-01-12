@@ -11,7 +11,7 @@
         "url": "git+https://github.com/github/copilot-language-server-release.git"
     },
     "license": "MIT",
-    "version": "1.397.0",
+    "version": "1.408.0",
     "bin": {
         "copilot-language-server": "../dist/language-server.js"
     },
@@ -37,12 +37,12 @@
         "vscode-languageserver-protocol": "^3.17.5"
     },
     "optionalDependencies": {
-        "@github/copilot-language-server-win32-x64": "1.397.0",
-        "@github/copilot-language-server-linux-x64": "1.397.0",
-        "@github/copilot-language-server-linux-arm64": "1.397.0",
-        "@github/copilot-language-server-darwin-x64": "1.397.0",
-        "@github/copilot-language-server-darwin-arm64": "1.397.0"
+        "@github/copilot-language-server-win32-x64": "1.408.0",
+        "@github/copilot-language-server-linux-x64": "1.408.0",
+        "@github/copilot-language-server-linux-arm64": "1.408.0",
+        "@github/copilot-language-server-darwin-x64": "1.408.0",
+        "@github/copilot-language-server-darwin-arm64": "1.408.0"
     },
     "buildType": "prod",
-    "build": "1829"
+    "build": "15"
 }

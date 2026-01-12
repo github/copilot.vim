@@ -92,4 +92,13 @@ copilot.rpc_notify = function(client_id, method, params)
   return client.rpc.notify(method, params)
 end
 
+copilot.did_change_configuration = function(client_id, settings)
+  local client = vim.lsp.get_client_by_id(client_id)
+  if not client then
+    return
+  end
+  client.settings = settings
+  return client.notify('workspace/didChangeConfiguration', { settings = settings })
+end
+
 return copilot

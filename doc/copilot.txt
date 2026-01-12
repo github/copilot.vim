@@ -26,6 +26,14 @@ COMMANDS                                        *:Copilot*
 :Copilot status         Check if GitHub Copilot is operational for the current
                         buffer and report on any issues.
 
+                                                *:Copilot_model*
+:Copilot model          If a preview or other alternate model for completions
+                        is available, provides an interactive interface for
+                        enabling it for the rest of the current Vim/Neovim
+                        session.  Note that typically the number of available
+                        completions models is one, rendering this command
+                        inert.
+
                                                 *:Copilot_panel*
 :Copilot panel          Open a window with up to 10 completions for the
                         current buffer.  Use <CR> to accept a completion.
@@ -35,26 +43,28 @@ COMMANDS                                        *:Copilot*
                                                 *:Copilot_version*
 :Copilot version        Show version information.
 
-                                                *:Copilot_feedback*
-:Copilot feedback       Open the website for providing GitHub Copilot
-                        feedback.  Be sure to include |:Copilot_version|
-                        output when reporting a bug.
+                                                *:Copilot_upgrade*
+:Copilot upgrade        Upgrade the Copilot Language Server to the latest
+                        version with `npx`.  This works by temporarily setting
+                        |g:copilot_version| to "latest" and restarting.
 
 OPTIONS                                         *copilot-options*
 
-g:copilot_npx           Use `npx` to dynamically retrieve and run the Copilot
-                        Language Server.  This can enable using a newer
-                        version than the one embedded in the plugin
-                        repository, and also bypasses the Node.js version
-                        requirement by using a precompiled binary.
+g:copilot_version       Specify a version constraint passed to `npx` when
+                        running the Copilot Language Server.  By default, this
+                        is a minor version constraint like "^1.400.0" that
+                        matches a known good version but allows minor version
+                        updates.  You can pin this to a specific version, or
+                        use the special value of "latest" which causes `npx`
+                        to always fetch the latest version at startup.
 >
-                        let g:copilot_npx = v:true
+                        let g:copilot_version = 'latest'
 <
-                        You can also use a string to specify an NPM version
-                        constraint.  One useful value is "latest" to always
-                        use the most recent release.
+                        As a special case, setting this to v:false will
+                        disable the use of `npx` and use a static version of
+                        the language server embedded in the plugin.
 >
-                        let g:copilot_npx = 'latest'
+                        let g:copilot_version = v:false
 <
                                                 *g:copilot_filetypes*
 g:copilot_filetypes     A dictionary mapping file types to their enabled

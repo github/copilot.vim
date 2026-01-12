@@ -5,6 +5,12 @@
             "description": "Researches and deconstructs tasks to create effective multi-step plans.",
             "path": "./assets/agents/Plan.agent.md",
             "showAsChatMode": true
+        },
+        {
+            "name": "CVE Remediator",
+            "description": "Detects and fixes security vulnerabilities (CVEs) in project dependencies across any ecosystem while maintaining a working build.",
+            "path": "./assets/agents/CVE_Remediator.agent.md",
+            "showAsChatMode": false
         }
     ]
 }
