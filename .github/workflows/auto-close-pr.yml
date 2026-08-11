@@ -1,20 +1,14 @@
 name: Auto-close PR
 on:
-  pull_request_target:
+  pull_request:
     types: [opened, reopened]
 
-jobs:
-  close:
-    name: Run
-    runs-on: ubuntu-latest
-    permissions:
-      pull-requests: write
-    steps:
-      - run: |
-          gh pr close ${{ github.event.pull_request.number }} --comment \
-          "At the moment we are not accepting contributions to the repository.
+permissions:
+  pull-requests: read
 
-          Feedback for Copilot.vim can be given in the [feedback forum](https://github.com/github/copilot.vim/issues)."
-        env:
-          GH_REPO: ${{ github.repository }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+jobs:
+  signal:
+    name: Signal
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Auto-close signal for PR #${{ github.event.pull_request.number }}"
